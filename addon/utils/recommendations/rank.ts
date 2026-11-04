@@ -9,7 +9,7 @@ export function picksKey(
   return selectionKey(
     config,
     uuid,
-    kind === "anime" ? "anime-series" : kind === "all" ? "movie" : kind,
+    kind === "anime" ? "anime" : kind === "all" ? "movie" : kind,
   );
 }
 export async function recommend(
@@ -19,7 +19,7 @@ export async function recommend(
   kind: RecommendKind,
 ): Promise<any[]> {
   const pool: Pool =
-    kind === "anime" ? "anime-series" : kind === "all" ? "movie" : kind;
+    kind === "anime" ? "anime" : kind === "all" ? "movie" : kind;
   return (await selection(config, uuid, pool)).rows.top ?? [];
 }
 module.exports = { recommend, picksKey };

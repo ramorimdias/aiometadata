@@ -127,6 +127,11 @@ test("Watchly rows preserve viewer isolation, dynamic seed names, watched exclus
     "anime-movie",
   );
   assert.equal(anime.rows.top.length, 3);
+  const combined = await selection(config("new-user"), "same-owner", "anime");
+  assert.equal(combined.names.top, "Anime For You");
+  assert.ok(combined.rows.top.some(pick => pick.kind === "movie"));
+  assert.ok(combined.rows.top.some(pick => pick.kind === "series"));
+  assert.ok(combined.rows.top.every(pick => animeIds.has(pick.tmdbId)));
   const excluded = await selection(
     { profile: "new-user", recommendations: { excluded_movie_genres: ["16"] } },
     "same-owner",
@@ -174,4 +179,17 @@ test("ranking reproduces the Watchly reference fixture", () => {
         result.score - fixture.scores[fixture.candidates.indexOf(result.title)],
       ) < 1e-9,
     );
+});
+test("watched and loved names rotate daily under unchanged history", async (t) => {
+  fail = false;
+  force = true;
+  histories.rotation = [histories.alice[0], histories.bob[0]];
+  let now = 20000 * 86400000;
+  t.mock.method(Date, "now", () => now);
+  const config = { profile: "rotation", recommendations: {} };
+  const first = await selection(config, "rotation-owner", "movie");
+  now += 86400000;
+  const next = await selection(config, "rotation-owner", "movie");
+  assert.notEqual(first.names.watched, next.names.watched);
+  assert.notEqual(first.names.loved, next.names.loved);
 });

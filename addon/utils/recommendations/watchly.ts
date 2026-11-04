@@ -30,7 +30,7 @@ export const WATCHLY_ROWS = [
   ["creators", "From Your Favorite Creators"],
   ["positive", "Based on What You Loved/Liked"],
 ] as const;
-export type Pool = "movie" | "series" | "anime-movie" | "anime-series";
+export type Pool = "movie" | "series" | "anime" | "anime-movie" | "anime-series";
 export interface Selection {
   rows: Record<string, any[]>;
   names: Record<string, string>;
@@ -100,7 +100,7 @@ export function selectionKey(config: any, uuid: string, pool: Pool) {
     "recommendations:watchly:v1:" +
     viewerKey(config, uuid) +
     ":" +
-    pool +
+    (pool === "anime" ? "anime-combined" : pool) +
     ":" +
     createHash("sha256").update(settings).digest("hex")
   );
@@ -155,6 +155,15 @@ async function build(
   uuid: string,
   pool: Pool,
 ): Promise<Selection> {
+  if (pool === "anime") {
+    const movies = await selection(config, uuid, "anime-movie");
+    const series = await selection(config, uuid, "anime-series");
+    return {
+      rows: { top: [...(movies.rows.top ?? []), ...(series.rows.top ?? [])] },
+      names: { top: "Anime For You" },
+      builtAt: new Date().toISOString(),
+    };
+  }
   const tmdb: any = require("../../lib/getTmdb");
   const anime = pool.startsWith("anime-");
   const type: MediaType = pool.endsWith("movie") ? "movie" : "series";
