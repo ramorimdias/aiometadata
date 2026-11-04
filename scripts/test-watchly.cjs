@@ -210,14 +210,14 @@ test("AI naming uses the configured model, caches labels and only renames genre 
       assert.ok(input.rows.every((row) => /^(genres|themes)(-[23])?$/.test(row.id)));
       return {
         text: JSON.stringify({
-          genres: "Drama Worth Getting Lost In",
-          themes: "From Page to Screen",
+          genres: "Drama",
+          themes: "Based on Books",
           watched: "Invented viewing",
           top: "Invented top heading",
           creators: "Invented creator heading",
           positive: "Invented rating heading",
-          "genres-2": "More Drama",
-          "themes-3": "Literary Escapes",
+          "genres-2": "Action",
+          "themes-3": "Book Adaptations",
         }),
       };
     },
@@ -256,12 +256,12 @@ test("AI naming uses the configured model, caches labels and only renames genre 
     "themes-3": [{ title: "Book pick" }],
   };
   const named = await nameCatalogs(config, "owner", "series", defaults, rows);
-  assert.equal(named.genres, "Drama Worth Getting Lost In");
-  assert.equal(named.themes, "From Page to Screen");
+  assert.equal(named.genres, "Drama");
+  assert.equal(named.themes, "Based on Books");
   assert.equal(named.watched, defaults.watched);
   for (const id of ["top", "creators", "positive"]) assert.equal(named[id], defaults[id]);
-  assert.equal(named["genres-2"], "More Drama");
-  assert.equal(named["themes-3"], "Literary Escapes");
+  assert.equal(named["genres-2"], "Action");
+  assert.equal(named["themes-3"], "Book Adaptations");
   assert.deepEqual(await nameCatalogs(config, "owner", "anime-movie", {top: "Top Picks for You (Anime)"}, {top: [{title: "Anime pick"}]}), {top: "Top Picks for You (Anime)"});
   assert.deepEqual(
     await nameCatalogs(config, "owner", "series", defaults, rows),
