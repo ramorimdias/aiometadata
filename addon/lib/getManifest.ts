@@ -1133,11 +1133,7 @@ async function getManifest(config: any, opts: { tags?: string[]; userUUID?: stri
         return true;
       }
       if (userCatalog.id.startsWith('recommendations.')) {
-        // Needs a history to read and a model to read it with.
-        const hasHistory = readsHistory;
-        const hasModel = !!(config.apiKeys?.gemini || config.apiKeys?.openrouter
-          || process.env.GEMINI_API_KEY || process.env.BUILT_IN_GEMINI_API_KEY || process.env.OPENROUTER_API_KEY);
-        return hasHistory && hasModel;
+        return readsHistory;
       }
       if (userCatalog.id.startsWith('movielens.')) {
         return !!config.apiKeys?.movieLensCredId;
@@ -1220,7 +1216,7 @@ async function getManifest(config: any, opts: { tags?: string[]; userUUID?: stri
           return {
             id: userCatalog.id,
             type: userCatalog.displayType || userCatalog.type,
-            name: `${showPrefix ? `${prefixName} - ` : ""}${userCatalog.name}`,
+            name: `${showPrefix ? `${prefixName} - ` : ""}${await require('../utils/recommendations/catalog').recommendationName(userCatalog.id, opts.viewer ?? config, opts.userUUID ?? config.userUUID ?? '') || userCatalog.name}`,
             pageSize: parseInt(process.env.CATALOG_LIST_ITEMS_SIZE as string) || 20,
             extra: [
               ...(userCatalog.showInHome ? [] : [{ name: 'genre', options: ['None'], isRequired: true }]),

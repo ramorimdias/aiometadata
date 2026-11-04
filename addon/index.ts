@@ -3294,7 +3294,7 @@ addon.get("/api/recommendations/status", async (req: any, res: any) => {
         sources: sources.choice,
         connected: { simkl: sources.simkl, mdblist: sources.mdblist, local: sources.local },
         available: trackerAvailability(viewerConfig),
-        provider: chosen ? { provider: chosen.provider, model: chosen.model } : null,
+        provider: { provider: 'watchly', model: 'TMDB taste ranking' },
         counts: summarise(rows, require('./utils/recommendations/rows').tuningFrom(viewerConfig)),
         profile: profile ? { summary: profile.summary, builtAt: profile.builtAt, builtFrom: profile.builtFrom } : null,
       };

@@ -39,7 +39,7 @@ function forCatalog(config: any, catalogId: string | undefined, field: string): 
 
 export function pickOrder(config: any, catalogId?: string): PickOrder {
   const chosen = forCatalog(config, catalogId, 'pickOrder') ?? config?.recommendations?.order;
-  return (PICK_ORDERS as readonly string[]).includes(chosen) ? chosen : 'balanced';
+  return (PICK_ORDERS as readonly string[]).includes(chosen) ? chosen : 'suggested';
 }
 
 /** Near-zero votes usually means the search matched the wrong title, not an

@@ -41,9 +41,7 @@ export async function bumpRowStamp(viewer: string): Promise<void> {
 }
 
 async function usable(config: any, userUUID: string): Promise<boolean> {
-  const hasModel = !!(config?.apiKeys?.gemini || config?.apiKeys?.openrouter
-    || process.env.GEMINI_API_KEY || process.env.BUILT_IN_GEMINI_API_KEY || process.env.OPENROUTER_API_KEY);
-  return hasModel && require('./history').canReadHistory(config, userUUID);
+  return require('./history').canReadHistory(config, userUUID);
 }
 
 export async function sweepRecommendations(): Promise<{ checked: number; refreshed: number }> {
@@ -55,7 +53,7 @@ export async function sweepRecommendations(): Promise<{ checked: number; refresh
     const { withGlobalEpoch }: any = require('../../lib/cacheEpoch');
     const { runWithSourceRefetch }: any = require('../../lib/cacheSourceRefetch');
     const { RECOMMENDATION_CATALOGS, isRecommendationCatalog }: any = require('./catalog');
-    const { picksKey, recommend }: any = require('./rank');
+    const { selectionKey, selection }: any = require('./watchly');
     const { getTasteProfile }: any = require('./profile');
     const { hasOwnHistory, runAsProfile }: any = require('./history');
     const leadMs = envInt('RECOMMENDATION_REFRESH_LEAD', 3600, 60) * 1000;
@@ -92,17 +90,17 @@ export async function sweepRecommendations(): Promise<{ checked: number; refresh
       await runAsProfile(config, user.id, profileId || null, async (viewerConfig: any) => {
         let profile: any = null;
         for (const id of wanted) {
-          const kind = RECOMMENDATION_CATALOGS.find((entry: any) => entry.id === id)?.kind;
-          if (!kind) continue;
+          const entry = RECOMMENDATION_CATALOGS.find((entry: any) => entry.id === id);
+          if (!entry) continue;
           out.checked += 1;
-          const ttlMs = await redis.pttl(withGlobalEpoch(picksKey(viewerConfig, user.id, kind)));
-          if (!(ttlMs > 0 && ttlMs <= leadMs)) continue;
+          const ttlMs = await redis.pttl(withGlobalEpoch(selectionKey(viewerConfig, user.id, entry.pool)));
+          if (ttlMs > leadMs) continue;
           try {
             profile = profile ?? (await runWithRequestContext(user.id, () => getTasteProfile(viewerConfig, user.id)));
             if (!profile) break;
-            const picks = await runWithRequestContext(user.id, () => runWithSourceRefetch(() => recommend(viewerConfig, user.id, profile, kind)));
+            const picks = await runWithRequestContext(user.id, () => runWithSourceRefetch(() => selection(viewerConfig, user.id, entry.pool)));
             out.refreshed += 1;
-            logger.info(`Refreshed ${id} for ${viewer} ${Math.round(ttlMs / 60000)} min before it lapsed: ${picks.length} picks`);
+            logger.info(`Refreshed ${id} for ${viewer} ${Math.round(ttlMs / 60000)} min before it lapsed: ${(picks.rows[entry.row] ?? []).length} picks`);
           } catch (error: any) {
             logger.warn(`Could not refresh ${id} for ${viewer}: ${error?.message || error}`);
           }

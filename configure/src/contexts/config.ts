@@ -350,6 +350,12 @@ export interface AppConfig {
   };
   /** Model overrides for the recommendation catalogs. */
   recommendations?: {
+    discovery_style?: 'mainstream' | 'balanced' | 'gems' | 'all';
+    from_year?: number;
+    to_year?: number;
+    excluded_movie_genres?: string[];
+    excluded_series_genres?: string[];
+    excluded_keywords?: string[];
     provider?: 'gemini' | 'openrouter';
     gemini_model?: string;
     openrouter_model?: string;

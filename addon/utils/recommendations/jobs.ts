@@ -35,29 +35,12 @@ export function isRunning(userUUID: string, catalogId: string): boolean {
   return !!job && job.stage !== 'done' && job.stage !== 'error';
 }
 
-function profileFailure(config: any, rows: any[]): string {
-  const { isWatched }: any = require('./history');
-  const { resolveProvider, reasoningEffort }: any = require('./provider');
-
-  const watched = rows.filter(isWatched).length;
-  if (watched < 10) return `Not enough watch history to build a profile: ${watched} of the 10 watched titles needed`;
-  if (!resolveProvider(config)) return 'No AI provider is configured: set a Gemini or OpenRouter key';
-
-  const effort = reasoningEffort(config);
-  return effort === 'high' || effort === 'medium'
-    ? `The model returned no usable profile. Thinking takes a share of the reply at ${effort}, so try a lower level.`
-    : 'The model returned no usable profile';
+function profileFailure(_config: any, _rows: any[]): string {
+  return 'Could not read watch history for this viewer.';
 }
 
-/** An empty row is almost always a reply spent on thinking before any title was written. */
-function picksFailure(config: any): string {
-  const { reasoningEffort }: any = require('./provider');
-  const effort = reasoningEffort(config);
-  if (effort === 'none') return 'The model returned no usable picks';
-  if (!effort) return 'The model returned no usable picks. It may have spent the reply thinking, so try lowering the preset\'s reasoning on OpenRouter.';
-  return effort === 'minimal'
-    ? 'The model returned no usable picks. It may have spent the reply thinking, so try turning thinking off.'
-    : `The model returned no usable picks. Thinking takes a share of the reply at ${effort}, so try a lower level.`;
+function picksFailure(_config: any): string {
+  return 'No eligible titles matched this row. Check its history, release years, genres and keyword exclusions.';
 }
 
 /** One catalog end to end, reporting progress: profile, picks, and a pass of art
@@ -85,14 +68,14 @@ export function startJob(config: any, userUUID: string, catalogId: string, force
       const profile = await getTasteProfile(config, userUUID);
       if (!profile) throw new Error(profileFailure(config, rows));
 
-      const { recommend }: any = require('./rank');
+      const { selection }: any = require('./watchly');
       job.stage = 'choosing';
       const { runWithSourceRefetch }: any = require('../../lib/cacheSourceRefetch');
       const picks = force
-        ? await runWithSourceRefetch(() => recommend(config, userUUID, profile, entry.kind))
-        : await recommend(config, userUUID, profile, entry.kind);
-      job.picks = picks.length;
-      if (!picks.length) throw new Error(picksFailure(config));
+        ? await runWithSourceRefetch(() => selection(config, userUUID, entry.pool))
+        : await selection(config, userUUID, entry.pool);
+      job.picks = (picks.rows[entry.row] ?? []).length;
+      if (!job.picks) throw new Error(picksFailure(config));
       if (force) await require('./refresh').bumpRowStamp(viewer);
 
       // Warms the meta caches the row will read, so the first open is not the
