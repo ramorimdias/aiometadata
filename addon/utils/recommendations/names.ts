@@ -3,6 +3,8 @@ import consola from "consola";
 import { resolveProvider } from "./provider";
 import { viewerKey } from "./history";
 
+export const CATALOG_NAMING_VERSION = 2;
+
 interface RowContext {
   id: string;
   topic: string;
@@ -76,7 +78,7 @@ export async function nameCatalogs(
     )
     .digest("hex");
   const key =
-    "recommendations:ai-names:v1:" +
+    "recommendations:ai-names:v" + CATALOG_NAMING_VERSION + ":" +
     viewerKey(config, uuid) +
     ":" +
     fingerprint;
@@ -94,6 +96,10 @@ export async function nameCatalogs(
             "Return only a JSON object mapping the supplied row ids to headings.",
             "Use the supplied topic and example recommendations as evidence.",
             "Keep each heading specific, readable, and preferably 3 to 7 words.",
+          "Write an editorial shelf heading rather than a description of a recommendation system.",
+          "Avoid generic wording such as Top Picks, Curated Picks, Personalized, Favorites, For You, Films or Series.",
+          "Instead describe the shared topic, genre or viewing mood supported by the supplied examples.",
+          "Examples of style include Drama with an Edge, Romance Between the Pages, or Small-Town Secrets. Use them only when supported by the row.",
             "A genre heading must clearly retain its genre. A theme heading should express its actual theme.",
             "For anime pools, explicitly identify the heading as Anime.",
             "Make headings distinct and avoid generic labels, hype, quotes, emojis, spoilers, or invented watch-history claims.",
@@ -125,4 +131,4 @@ export async function nameCatalogs(
   }
 }
 
-module.exports = { nameCatalogs, parseCatalogNames };
+module.exports = { nameCatalogs, parseCatalogNames, CATALOG_NAMING_VERSION };

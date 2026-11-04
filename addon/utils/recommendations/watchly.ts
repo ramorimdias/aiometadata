@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { nameCatalogs } from "./names";
+import { nameCatalogs, CATALOG_NAMING_VERSION } from "./names";
 import { resolveProvider } from "./provider";
 import {
   collectWatchedRows,
@@ -102,6 +102,7 @@ export function selectionKey(config: any, uuid: string, pool: Pool) {
     config.apiKeys?.mdblist,
     naming?.provider,
     naming?.model,
+    naming ? CATALOG_NAMING_VERSION : undefined,
     config.language,
   ]);
   return (
