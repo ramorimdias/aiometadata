@@ -350,6 +350,7 @@ export interface AppConfig {
   };
   /** Model overrides for the recommendation catalogs. */
   recommendations?: {
+    ai_names?: boolean;
     discovery_style?: 'mainstream' | 'balanced' | 'gems' | 'all';
     from_year?: number;
     to_year?: number;

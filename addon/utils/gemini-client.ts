@@ -9,6 +9,7 @@ interface GenerateContentOptions {
   systemPrompt?: string;
   useGrounding?: boolean;
   timeout?: number;
+  maxTokens?: number;
 }
 
 interface GenerateContentResult {
@@ -56,7 +57,7 @@ const createGeminiDispatcher = (): any => {
 
 const geminiDispatcher: any = createGeminiDispatcher();
 
-async function generateContent({ apiKey, model, prompt, systemPrompt, useGrounding = false, timeout = 30000 }: GenerateContentOptions): Promise<GenerateContentResult> {
+async function generateContent({ apiKey, model, prompt, systemPrompt, useGrounding = false, timeout = 30000, maxTokens }: GenerateContentOptions): Promise<GenerateContentResult> {
   const url = `${GEMINI_BASE_URL}/models/${model}:generateContent`;
   const startTime = Date.now();
 
@@ -67,6 +68,8 @@ async function generateContent({ apiKey, model, prompt, systemPrompt, useGroundi
       }
     ]
   };
+
+  if (maxTokens !== undefined) body.generationConfig = { maxOutputTokens: maxTokens };
 
   if (systemPrompt) {
     body.system_instruction = { parts: [{ text: systemPrompt }] };

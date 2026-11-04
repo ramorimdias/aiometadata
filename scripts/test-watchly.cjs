@@ -26,7 +26,10 @@ stub("lib/getCache.js", {
 stub("utils/recommendations/refresh.js", {
   bumpRowStamp: async () => undefined,
 });
-stub("utils/recommendations/provider.js", { refreshTtl: () => 21600 });
+stub("utils/recommendations/provider.js", {
+  refreshTtl: () => 21600,
+  resolveProvider: (config) => config.testProvider,
+});
 const histories = {
   alice: [
     {
@@ -129,9 +132,9 @@ test("Watchly rows preserve viewer isolation, dynamic seed names, watched exclus
   assert.equal(anime.rows.top.length, 3);
   const combined = await selection(config("new-user"), "same-owner", "anime");
   assert.equal(combined.names.top, "Anime For You");
-  assert.ok(combined.rows.top.some(pick => pick.kind === "movie"));
-  assert.ok(combined.rows.top.some(pick => pick.kind === "series"));
-  assert.ok(combined.rows.top.every(pick => animeIds.has(pick.tmdbId)));
+  assert.ok(combined.rows.top.some((pick) => pick.kind === "movie"));
+  assert.ok(combined.rows.top.some((pick) => pick.kind === "series"));
+  assert.ok(combined.rows.top.every((pick) => animeIds.has(pick.tmdbId)));
   const excluded = await selection(
     { profile: "new-user", recommendations: { excluded_movie_genres: ["16"] } },
     "same-owner",
@@ -192,4 +195,91 @@ test("watched and loved names rotate daily under unchanged history", async (t) =
   const next = await selection(config, "rotation-owner", "movie");
   assert.notEqual(first.names.watched, next.names.watched);
   assert.notEqual(first.names.loved, next.names.loved);
+});
+
+test("AI naming uses the configured model, caches labels and keeps seed names", async () => {
+  force = false;
+  let calls = 0;
+  stub("utils/gemini-client.js", {
+    generateContent: async (options) => {
+      calls++;
+      assert.equal(options.model, "configured-model");
+      assert.equal(options.useGrounding, false);
+      assert.equal(options.maxTokens, 2048);
+      const input = JSON.parse(options.prompt);
+      assert.ok(input.rows.every((row) => row.id !== "watched"));
+      return {
+        text: JSON.stringify({
+          genres: "Drama Worth Getting Lost In",
+          themes: "From Page to Screen",
+          watched: "Invented viewing",
+        }),
+      };
+    },
+  });
+  const { nameCatalogs, parseCatalogNames } = require(
+    path.join(root, "utils/recommendations/names.js"),
+  );
+  const config = {
+    profile: "naming",
+    recommendations: { ai_names: true },
+    testProvider: {
+      provider: "gemini",
+      apiKey: "test-key",
+      model: "configured-model",
+      clientPath: "../gemini-client",
+    },
+  };
+  const defaults = {
+    genres: "Drama",
+    themes: "based on novel or book",
+    watched: "Because you watched Alice seed",
+  };
+  const rows = {
+    genres: [{ title: "Drama example" }],
+    themes: [{ title: "Book adaptation" }],
+    watched: [{ title: "Seed pick" }],
+  };
+  const named = await nameCatalogs(config, "owner", "series", defaults, rows);
+  assert.equal(named.genres, "Drama Worth Getting Lost In");
+  assert.equal(named.themes, "From Page to Screen");
+  assert.equal(named.watched, defaults.watched);
+  assert.deepEqual(
+    await nameCatalogs(config, "owner", "series", defaults, rows),
+    named,
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(
+    parseCatalogNames('{"genres":"<b>Drama</b>","themes":"Favorite Theme 1"}', [
+      { id: "genres", topic: "Drama", titles: [] },
+      { id: "themes", topic: "Novel", titles: [] },
+    ]),
+    {},
+  );
+  assert.deepEqual(
+    await nameCatalogs(
+      { ...config, recommendations: { ai_names: false } },
+      "owner",
+      "series",
+      defaults,
+      rows,
+    ),
+    defaults,
+  );
+  assert.equal(calls, 1);
+  stub("utils/gemini-client.js", {
+    generateContent: async () => {
+      throw new Error("Provider unavailable");
+    },
+  });
+  assert.deepEqual(
+    await nameCatalogs(
+      { ...config, language: "fr-FR" },
+      "owner",
+      "series",
+      defaults,
+      rows,
+    ),
+    defaults,
+  );
 });

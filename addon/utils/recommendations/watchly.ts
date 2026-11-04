@@ -1,4 +1,6 @@
 import { createHash } from "crypto";
+import { nameCatalogs } from "./names";
+import { resolveProvider } from "./provider";
 import {
   collectWatchedRows,
   isWatched,
@@ -30,7 +32,8 @@ export const WATCHLY_ROWS = [
   ["creators", "From Your Favorite Creators"],
   ["positive", "Based on What You Loved/Liked"],
 ] as const;
-export type Pool = "movie" | "series" | "anime" | "anime-movie" | "anime-series";
+export type Pool =
+  "movie" | "series" | "anime" | "anime-movie" | "anime-series";
 export interface Selection {
   rows: Record<string, any[]>;
   names: Record<string, string>;
@@ -90,11 +93,16 @@ function preferred(profile: Profile, axis: keyof Profile): string[] {
 
 export function selectionKey(config: any, uuid: string, pool: Pool) {
   const { resolveSources }: any = require("./history");
+  const naming =
+    config.recommendations?.ai_names === true ? resolveProvider(config) : null;
   const settings = JSON.stringify([
     config.recommendations,
     resolveSources(config).choice,
     config.apiKeys?.simklTokenId,
     config.apiKeys?.mdblist,
+    naming?.provider,
+    naming?.model,
+    config.language,
   ]);
   return (
     "recommendations:watchly:v1:" +
@@ -158,9 +166,18 @@ async function build(
   if (pool === "anime") {
     const movies = await selection(config, uuid, "anime-movie");
     const series = await selection(config, uuid, "anime-series");
+    const rows = {
+      top: [...(movies.rows.top ?? []), ...(series.rows.top ?? [])],
+    };
     return {
-      rows: { top: [...(movies.rows.top ?? []), ...(series.rows.top ?? [])] },
-      names: { top: "Anime For You" },
+      rows,
+      names: await nameCatalogs(
+        config,
+        uuid,
+        pool,
+        { top: "Anime For You" },
+        rows,
+      ),
       builtAt: new Date().toISOString(),
     };
   }
@@ -428,7 +445,11 @@ async function build(
       fit: 100 - index,
     }));
   }
-  const result = { rows, names, builtAt: new Date().toISOString() };
+  const result = {
+    rows,
+    names: await nameCatalogs(config, uuid, pool, names, rows),
+    builtAt: new Date().toISOString(),
+  };
   await require("./refresh").bumpRowStamp(viewerKey(config, uuid));
   return result;
 }

@@ -363,6 +363,21 @@ export function RecommendationsIntegration({
           <h3 className="font-semibold">
             Discovery preferences for all viewers
           </h3>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="recommendation-ai-names">AI catalog names</Label>
+              <p className="text-sm text-muted-foreground">
+                Uses your linked AI provider and model to name rows from their
+                topics and a few recommendation titles. Labels are cached and
+                update when recommendations refresh.
+              </p>
+            </div>
+            <Switch
+              id="recommendation-ai-names"
+              checked={settings.ai_names === true}
+              onCheckedChange={(ai_names) => patch({ ai_names })}
+            />
+          </div>
           <Label htmlFor="recommendation-style">Discovery style</Label>
           <select
             id="recommendation-style"
