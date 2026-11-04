@@ -308,7 +308,7 @@ async function build(
         );
         const direct = replies.flatMap((reply: any) => reply?.results ?? []);
         pools.set(row, direct);
-        if (direct.length < 24) {
+        if (seed.genres.length) {
           await discover(row, { with_genres: seed.genres.join("|") });
           pools.set(row, [...direct, ...pools.get(row)!]);
         }
@@ -321,13 +321,45 @@ async function build(
     if (creators.length && type === "movie")
       await discover("creators", { with_people: creators.join("|") });
     if (creators.length && type === "series") {
-      const credits = await batches(creators, id => tmdb.personTvCredits({ id }, config));
-      pools.set("creators", credits.flatMap((reply: any) => [...(reply?.cast ?? []), ...(reply?.crew ?? [])]));
+      const credits = await batches(creators, (id) =>
+        tmdb.personTvCredits({ id }, config),
+      );
+      pools.set(
+        "creators",
+        credits.flatMap((reply: any) => [
+          ...(reply?.cast ?? []),
+          ...(reply?.crew ?? []),
+        ]),
+      );
     }
-    const favorites = enriched.filter(item => (item.history.rating ?? 0) >= 7).slice(0, 8);
-    const favoritesReplies = await batches(favorites, item =>
-      (type === "movie" ? tmdb.movieRecommendations : tmdb.tvRecommendations)({ id: item.title.id }, config));
-    pools.set("positive", favoritesReplies.flatMap((reply: any) => reply?.results ?? []));
+    const favorites = enriched
+      .filter((item) => (item.history.rating ?? 0) >= 7)
+      .slice(0, 8);
+    const favoritesReplies = await batches(favorites, (item) =>
+      (type === "movie" ? tmdb.movieRecommendations : tmdb.tvRecommendations)(
+        { id: item.title.id },
+        config,
+      ),
+    );
+    pools.set(
+      "positive",
+      favoritesReplies.flatMap((reply: any) => reply?.results ?? []),
+    );
+  }
+  if (anime) {
+    await batches(themes.slice(0, 2), (id) =>
+      discover("_theme-" + id, { with_keywords: id }),
+    );
+  } else {
+    const country = preferred(profile, "countries")[0];
+    const language = preferred(profile, "languages")[0];
+    if (country) await discover("_country", { with_origin_country: country });
+    if (language)
+      await discover("_language", { with_original_language: language });
+  }
+  pools.set("top", [...pools.values()].flat());
+  for (const key of pools.keys()) {
+    if (key.startsWith("_")) pools.delete(key);
   }
   const ids = [
     ...new Set(

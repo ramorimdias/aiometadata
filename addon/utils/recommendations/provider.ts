@@ -55,7 +55,7 @@ export function refreshTtl(config: any): number {
   if (Number.isFinite(chosen) && chosen > 0) return Math.round(chosen) * 60 * 60;
 
   const fallback = parseInt(process.env.RECOMMENDATION_TTL || '', 10);
-  return Number.isFinite(fallback) && fallback > 0 ? fallback : 24 * 60 * 60;
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 6 * 60 * 60;
 }
 
 const REASONING_SHARE: Record<string, number> = { high: 0.8, medium: 0.5, low: 0.2, minimal: 0.1, none: 0 };

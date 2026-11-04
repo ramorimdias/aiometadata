@@ -132,17 +132,25 @@ export function RecommendationsIntegration({
         );
         if (!response.ok) return;
         const data = await response.json();
-        const job = data.jobs?.find(
-          (entry: any) => entry.catalogId === working,
+        const ids: string[] = JSON.parse(working);
+        const jobs = ids.map((id) =>
+          data.jobs?.find((entry: any) => entry.catalogId === id),
         );
-        if (cancelled || !job) return;
+        if (cancelled || jobs.some((job) => !job)) return;
+        const failed = jobs.find((job) => job.stage === "error");
+        const complete = jobs.every(
+          (job) => job.stage === "done" || job.stage === "error",
+        );
         setMessage(
-          job.stage === "done"
-            ? job.picks + " picks ready. Refresh your catalog list."
-            : job.error || job.stage,
+          failed?.error ||
+            (complete
+              ? jobs.reduce((count, job) => count + job.picks, 0) +
+                " picks ready across your enabled pools."
+              : "Refreshing " +
+                jobs.filter((job) => job.stage !== "done").length +
+                " pools�"),
         );
-        if (job.stage === "done" || job.stage === "error")
-          setWorking(undefined);
+        if (complete) setWorking(undefined);
       } catch {
         /* A transient polling error leaves the current job visible. */
       }
@@ -176,32 +184,41 @@ export function RecommendationsIntegration({
     }));
   const generate = async () => {
     if (!auth.userUUID) return;
-    const id = config.catalogs.find(
-      (c) => c.enabled && c.id.startsWith("recommendations."),
-    )?.id;
-    if (!id) {
+    const pools = new Map<string, string>();
+    for (const catalog of config.catalogs) {
+      if (!catalog.enabled || !catalog.id.startsWith("recommendations."))
+        continue;
+      const pool = catalog.id.startsWith("recommendations.anime")
+        ? catalog.id
+        : catalog.type;
+      if (!pools.has(pool)) pools.set(pool, catalog.id);
+    }
+    const ids = [...pools.values()];
+    if (!ids.length) {
       toast.info("Enable at least one recommendation row first.");
       return;
     }
-    setWorking(id);
+    setWorking(JSON.stringify(ids));
     setMessage("Starting refresh…");
     try {
-      const response = await fetch("/api/recommendations/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userUUID: auth.userUUID,
-          password: auth.password,
-          catalogId: id,
-          recommendations: settings,
-          profile: viewer,
-          force: true,
-        }),
-      });
-      if (!response.ok)
-        throw new Error(
-          "Could not start refresh. Sign in to your saved configuration.",
-        );
+      for (const id of ids) {
+        const response = await fetch("/api/recommendations/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userUUID: auth.userUUID,
+            password: auth.password,
+            catalogId: id,
+            recommendations: settings,
+            profile: viewer,
+            force: true,
+          }),
+        });
+        if (!response.ok)
+          throw new Error(
+            "Could not start refresh. Sign in to your saved configuration.",
+          );
+      }
     } catch (error) {
       setWorking(undefined);
       toast.error(String(error));
@@ -284,6 +301,31 @@ export function RecommendationsIntegration({
             Row switches are shared by this configuration. Titles and picks are
             personalized for each viewer.
           </p>
+          {config.catalogs.some(
+            (catalog) => catalog.id === "recommendations.anime",
+          ) && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm">
+                Anime For You (combined legacy row)
+              </span>
+              <Switch
+                aria-label="Combined anime row"
+                checked={
+                  config.catalogs.find(
+                    (catalog) => catalog.id === "recommendations.anime",
+                  )?.enabled === true
+                }
+                onCheckedChange={(enabled) =>
+                  toggle(
+                    "recommendations.anime",
+                    "Anime For You",
+                    "anime",
+                    enabled,
+                  )
+                }
+              />
+            </div>
+          )}
           <div className="grid grid-cols-[1fr_4rem_4rem] gap-3 text-sm">
             <span>Catalog</span>
             <span>Movies</span>
