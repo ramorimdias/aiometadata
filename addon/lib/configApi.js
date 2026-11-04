@@ -621,7 +621,7 @@ class ConfigApi {
       try {
         const { warmRecommendations } = require('../utils/recommendations/catalog');
         setImmediate(() => {
-          warmRecommendations(config, userUUID).catch(error => {
+          warmRecommendations(persistedConfig || configWithTimestamp, userUUID).catch(error => {
             logger.warn(`Recommendation warm failed for ${userUUID}: ${error.message}`);
           });
         });
@@ -1048,6 +1048,14 @@ class ConfigApi {
         logger.error(`Error accessing Redis for cache invalidation:`, redisError);
       }
       
+      // Updating an existing install must warm the saved settings too, including
+      // newer options preserved when an older setup client omitted them.
+      setImmediate(() => {
+        require('../utils/recommendations/catalog')
+          .warmRecommendations(persistedConfig || configWithTimestamp, userUUID)
+          .catch(error => logger.warn('Recommendation warm failed:', error.message));
+      });
+
       res.json({
         success: true,
         userUUID,

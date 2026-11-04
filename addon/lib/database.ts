@@ -870,7 +870,9 @@ class Database {
     const newAppPassword = typeof normalizedConfig?.jellyfinAppPassword === 'string' ? normalizedConfig.jellyfinAppPassword : '';
     const hasUsers = (Array.isArray(normalizedConfig?.jellyfinUsers) && normalizedConfig.jellyfinUsers.length > 0)
       || Boolean(normalizedConfig && 'jellyfinUserPin' in normalizedConfig);
-    const previousConfig = newAppPassword || hasUsers ? await this.getUserConfig(userUUID).catch(() => null) : null;
+    const preserveNaming = normalizedConfig && typeof normalizedConfig === 'object' && normalizedConfig.recommendations?.ai_names === undefined;
+    const previousConfig = newAppPassword || hasUsers || preserveNaming ? await this.getUserConfig(userUUID).catch(() => null) : null;
+    normalizedConfig = require('../utils/recommendations/settings').preserveAiNaming(normalizedConfig, previousConfig);
     const previousAppPassword = newAppPassword ? previousConfig?.jellyfinAppPassword : undefined;
     const pinChanged = hasUsers ? await require('./jellyfin/pins').securePins(normalizedConfig, previousConfig) : [];
 

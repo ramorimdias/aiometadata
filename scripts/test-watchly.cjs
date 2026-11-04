@@ -302,3 +302,17 @@ test("AI naming uses the configured model, caches labels and only renames genre 
     defaults,
   );
 });
+
+
+test("saving catalogs preserves omitted AI naming and respects explicit disabling", () => {
+  const { preserveAiNaming } = require(path.join(root, "utils/recommendations/settings.js"));
+  const previous = { recommendations: { ai_names: true } };
+  const saved = preserveAiNaming({ catalogs: [{id: "recommendations.series.themes-2", enabled: true}], recommendations: {refresh_hours: 12} }, previous);
+  assert.equal(saved.recommendations.ai_names, true);
+  assert.equal(saved.recommendations.refresh_hours, 12);
+  assert.equal(saved.catalogs[0].enabled, true);
+  assert.equal(preserveAiNaming({recommendations: {ai_names: false}}, previous).recommendations.ai_names, false);
+  assert.equal(preserveAiNaming({}, previous).recommendations.ai_names, true);
+  assert.equal(preserveAiNaming({}, {}).recommendations, undefined);
+  assert.equal(preserveAiNaming({recommendations: {ai_names: true}}, {recommendations: {ai_names: false}}).recommendations.ai_names, true);
+});
