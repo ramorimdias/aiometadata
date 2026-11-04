@@ -10,7 +10,7 @@ Discovery settings include style, release years, excluded movie and series genre
 
 Selections are cached per viewer, media pool, source and settings. Active viewers refresh before the selection expires. A failed refresh reuses the last successful selection for up to seven days. Per-title TMDB metadata uses the existing shared cache.
 
-Dynamic names are published in the Stremio manifest under stable catalog IDs. Official AIOStreams reads these names when it fetches the manifest again. Its manifest cache can delay a changed name, and a manually assigned catalog name overrides the upstream name. The deployed official instance currently uses a five-minute manifest cache.
+Dynamic names are published in the Stremio manifest under stable catalog IDs. Official AIOStreams reads these names when it fetches the manifest again. Its manifest cache can delay a changed name. A saved catalog name overrides the upstream name, including the defaults its catalog editor saves when discovering a new row. Clear the saved name to follow upstream changes. The deployed AIOStreams configuration has upstream-name preferences prepared for every supported recommendation row on its three AIOMetadata installs. The deployed official instance currently uses a five-minute manifest cache.
 
 Run the backend build, frontend type check, focused tests and frontend build before deployment.
 
