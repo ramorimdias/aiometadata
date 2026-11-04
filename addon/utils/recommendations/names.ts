@@ -3,7 +3,7 @@ import consola from "consola";
 import { resolveProvider } from "./provider";
 import { viewerKey } from "./history";
 
-export const CATALOG_NAMING_VERSION = 2;
+export const CATALOG_NAMING_VERSION = 3;
 
 interface RowContext {
   id: string;
@@ -58,9 +58,9 @@ export async function nameCatalogs(
   if (config.recommendations?.ai_names !== true) return defaults;
   const provider = resolveProvider(config);
   if (!provider) return defaults;
-  // Seed labels state a concrete watch event, so keep their existing wording.
+  // Only genre and theme shelves receive AI headings.
   const contexts = Object.entries(rows)
-    .filter(([id, picks]) => id !== "watched" && id !== "loved" && picks.length)
+    .filter(([id, picks]) => /^(genres|themes)(-[23])?$/.test(id) && picks.length)
     .map(([id, picks]) => ({
       id,
       topic: defaults[id] ?? id,

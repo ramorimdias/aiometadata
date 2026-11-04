@@ -26,6 +26,6 @@ The ranking port includes Watchly's license beside its source.
 
 ## AI catalog names
 
-Enable **AI catalog names** in Recommendations to use the linked Gemini or OpenRouter provider and its configured model. The naming request uses row topics and up to five recommendation titles per row. It runs when a selection is rebuilt, and labels are cached for seven days by viewer, model, language and row context. The provider's usual API charges apply.
+Enable **AI theme and genre names** in Recommendations to use the linked Gemini or OpenRouter provider and its configured model. Only genre and theme catalogs receive AI headings. Top Picks, anime, creators and watched/loved catalogs keep their standard names. The naming request uses row topics and up to five recommendation titles per row. It runs when a selection is rebuilt, and labels are cached for seven days by viewer, model, language and row context. The provider's usual API charges apply.
 
 The watched and loved rows retain their concrete seed titles. Other rows receive concise headings based on their content. Missing credentials, failed requests and invalid labels fall back to the descriptive names. Catalog IDs remain stable, so upstream-name preferences in AIOStreams still apply.

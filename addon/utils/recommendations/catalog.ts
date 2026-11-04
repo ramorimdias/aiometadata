@@ -20,7 +20,7 @@ export const RECOMMENDATION_CATALOGS = [
 export async function recommendationName(id: string, config: any, userUUID: string): Promise<string | undefined> {
   const entry = RECOMMENDATION_CATALOGS.find(item => item.id === id);
   if (!entry) return;
-  if (entry.pool.startsWith('anime') && config.recommendations?.ai_names !== true) return entry.name;
+  if (entry.pool.startsWith('anime')) return entry.name;
   const { readGlobalCache }: any = require('../../lib/getCache');
   const key = selectionKey(config, userUUID, entry.pool);
   const cached = await readGlobalCache(key) || await readGlobalCache(key + ':last-good');

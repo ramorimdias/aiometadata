@@ -197,7 +197,7 @@ test("watched and loved names rotate daily under unchanged history", async (t) =
   assert.notEqual(first.names.loved, next.names.loved);
 });
 
-test("AI naming uses the configured model, caches labels and keeps seed names", async () => {
+test("AI naming uses the configured model, caches labels and only renames genre and theme shelves", async () => {
   force = false;
   let calls = 0;
   stub("utils/gemini-client.js", {
@@ -207,12 +207,17 @@ test("AI naming uses the configured model, caches labels and keeps seed names", 
       assert.equal(options.useGrounding, false);
       assert.equal(options.maxTokens, 2048);
       const input = JSON.parse(options.prompt);
-      assert.ok(input.rows.every((row) => row.id !== "watched"));
+      assert.ok(input.rows.every((row) => /^(genres|themes)(-[23])?$/.test(row.id)));
       return {
         text: JSON.stringify({
           genres: "Drama Worth Getting Lost In",
           themes: "From Page to Screen",
           watched: "Invented viewing",
+          top: "Invented top heading",
+          creators: "Invented creator heading",
+          positive: "Invented rating heading",
+          "genres-2": "More Drama",
+          "themes-3": "Literary Escapes",
         }),
       };
     },
@@ -234,16 +239,30 @@ test("AI naming uses the configured model, caches labels and keeps seed names", 
     genres: "Drama",
     themes: "based on novel or book",
     watched: "Because you watched Alice seed",
+    top: "Top Picks for You",
+    creators: "From Your Favorite Creators",
+    positive: "Based on What You Loved/Liked",
+    "genres-2": "Drama",
+    "themes-3": "novel",
   };
   const rows = {
     genres: [{ title: "Drama example" }],
     themes: [{ title: "Book adaptation" }],
     watched: [{ title: "Seed pick" }],
+    top: [{ title: "Top pick" }],
+    creators: [{ title: "Creator pick" }],
+    positive: [{ title: "Rated pick" }],
+    "genres-2": [{ title: "Drama pick" }],
+    "themes-3": [{ title: "Book pick" }],
   };
   const named = await nameCatalogs(config, "owner", "series", defaults, rows);
   assert.equal(named.genres, "Drama Worth Getting Lost In");
   assert.equal(named.themes, "From Page to Screen");
   assert.equal(named.watched, defaults.watched);
+  for (const id of ["top", "creators", "positive"]) assert.equal(named[id], defaults[id]);
+  assert.equal(named["genres-2"], "More Drama");
+  assert.equal(named["themes-3"], "Literary Escapes");
+  assert.deepEqual(await nameCatalogs(config, "owner", "anime-movie", {top: "Top Picks for You (Anime)"}, {top: [{title: "Anime pick"}]}), {top: "Top Picks for You (Anime)"});
   assert.deepEqual(
     await nameCatalogs(config, "owner", "series", defaults, rows),
     named,

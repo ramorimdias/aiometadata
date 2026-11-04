@@ -365,9 +365,9 @@ export function RecommendationsIntegration({
           </h3>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label htmlFor="recommendation-ai-names">AI catalog names</Label>
+              <Label htmlFor="recommendation-ai-names">AI theme and genre names</Label>
               <p className="text-sm text-muted-foreground">
-                Uses your linked AI provider and model to name rows from their
+                Uses your linked AI provider and model to name theme and genre rows from their
                 topics and a few recommendation titles. Labels are cached and
                 update when recommendations refresh.
               </p>
