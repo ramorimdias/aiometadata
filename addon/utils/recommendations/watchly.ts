@@ -388,8 +388,7 @@ async function build(
       names[row] =
         "Because you " +
         (row === "watched" ? "watched " : "loved ") +
-        seed.name +
-        (anime ? " (Anime)" : "");
+        seed.name;
       const replies = await batches([1, 2, 3], (page) =>
         (type === "movie" ? tmdb.movieRecommendations : tmdb.tvRecommendations)(
           { id: seed.id, page },

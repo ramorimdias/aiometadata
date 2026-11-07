@@ -478,7 +478,7 @@ test("anime watched catalogs use completed anime seeds, keep media types and pub
     assert.equal(entry.type, type);
     assert.equal(entry.pool, pool);
     const result = await selection(config, "anime-owner", pool);
-    assert.equal(result.names.watched, "Because you watched Pick 100 (Anime)");
+    assert.equal(result.names.watched, "Because you watched Pick 100");
     assert.ok(result.rows.watched.length > 0);
     assert.ok(
       result.rows.watched.every(

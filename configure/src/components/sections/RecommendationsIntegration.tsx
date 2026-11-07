@@ -356,7 +356,7 @@ export function RecommendationsIntegration({
                       key={id}
                       aria-label={name + " " + type}
                       checked={enabled}
-                      onCheckedChange={(value) => toggle(id, name, type, value)}
+                      onCheckedChange={(value) => toggle(id, row === "anime-watched" ? "Because You Watched" : name, type, value)}
                     />
                   );
                 })}

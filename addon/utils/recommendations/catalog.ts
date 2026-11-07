@@ -15,8 +15,8 @@ export const RECOMMENDATION_CATALOGS = [
   { id: 'recommendations.anime', kind: 'anime' as const, type: 'anime', name: 'Anime For You', pool: 'anime' as Pool, row: 'top' },
   { id: 'recommendations.anime-movies', kind: 'anime' as const, type: 'movie', name: 'Top Picks for You (Anime)', pool: 'anime-movie' as Pool, row: 'top' },
   { id: 'recommendations.anime-series', kind: 'anime' as const, type: 'series', name: 'Top Picks for You (Anime)', pool: 'anime-series' as Pool, row: 'top' },
-  { id: 'recommendations.anime-movies.watched', kind: 'anime' as const, type: 'movie', name: 'Because You Watched (Anime)', pool: 'anime-movie' as Pool, row: 'watched' },
-  { id: 'recommendations.anime-series.watched', kind: 'anime' as const, type: 'series', name: 'Because You Watched (Anime)', pool: 'anime-series' as Pool, row: 'watched' },
+  { id: 'recommendations.anime-movies.watched', kind: 'anime' as const, type: 'movie', name: 'Because You Watched', pool: 'anime-movie' as Pool, row: 'watched' },
+  { id: 'recommendations.anime-series.watched', kind: 'anime' as const, type: 'series', name: 'Because You Watched', pool: 'anime-series' as Pool, row: 'watched' },
 ];
 
 export async function recommendationName(id: string, config: any, userUUID: string): Promise<string | undefined> {
