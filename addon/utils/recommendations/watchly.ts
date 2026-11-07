@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { nameCatalogs, CATALOG_NAMING_VERSION } from "./names";
-import { resolveProvider } from "./provider";
+import { resolveProvider, refreshTtl } from "./provider";
 import {
   collectWatchedRows,
   isWatched,
@@ -40,7 +40,14 @@ export interface Selection {
   builtAt: string;
 }
 const active = new Map<string, Promise<Selection>>();
-const WATCHED_SEED_VERSION = 2;
+const WATCHED_SEED_VERSION = 3;
+const WATCHED_ROTATION_MS = 12 * 60 * 60 * 1000;
+
+// Expire at the next seed change even when the configured refresh interval is longer.
+function selectionTtl(config: any): number {
+  const untilNextRotation = Math.ceil((WATCHED_ROTATION_MS - Date.now() % WATCHED_ROTATION_MS) / 1000);
+  return Math.max(1, Math.min(86400, refreshTtl(config), untilNextRotation));
+}
 
 async function batches<T, U>(
   values: T[],
@@ -127,7 +134,6 @@ export async function selection(
     readGlobalCache,
     writeGlobalCache,
   }: any = require("../../lib/getCache");
-  const { refreshTtl }: any = require("./provider");
   const key = selectionKey(config, uuid, pool);
   let pending = active.get(key);
   if (!pending) {
@@ -144,7 +150,7 @@ export async function selection(
           throw error;
         }
       },
-      Math.min(86400, refreshTtl(config)),
+      selectionTtl(config),
       {
         sourceList: true,
         resultClassifier: (result: Selection) => ({
@@ -152,7 +158,7 @@ export async function selection(
           ttl:
             Date.now() - Date.parse(result.builtAt) > refreshTtl(config) * 1000
               ? 60
-              : null,
+              : selectionTtl(config),
         }),
       },
     ).finally(() => active.delete(key));
@@ -260,7 +266,7 @@ async function build(
     .sort((a, b) => (b.history.watchedAt ?? 0) - (a.history.watchedAt ?? 0))
     .slice(0, 10);
   const recent = completedTitles.length
-    ? completedTitles[day % completedTitles.length].title
+    ? completedTitles[Math.floor(Date.now() / WATCHED_ROTATION_MS) % completedTitles.length].title
     : undefined;
   const lovedTitles = enriched
     .filter((item) => (item.history.rating ?? 0) >= 9)

@@ -11,10 +11,12 @@ const stub = (file, exports) => {
   };
 };
 const snapshots = new Map();
+const cacheTtls = new Map();
 let force = false;
 let fail = false;
 stub("lib/getCache.js", {
-  cacheWrapGlobal: async (key, build) => {
+  cacheWrapGlobal: async (key, build, ttl) => {
+    cacheTtls.set(key, ttl);
     if (!force && snapshots.has(key)) return snapshots.get(key);
     const value = await build();
     snapshots.set(key, value);
@@ -27,7 +29,7 @@ stub("utils/recommendations/refresh.js", {
   bumpRowStamp: async () => undefined,
 });
 stub("utils/recommendations/provider.js", {
-  refreshTtl: () => 21600,
+  refreshTtl: (config) => (config.recommendations?.refresh_hours ?? 6) * 3600,
   resolveProvider: (config) => config.testProvider,
 });
 const histories = {
@@ -183,18 +185,28 @@ test("ranking reproduces the Watchly reference fixture", () => {
       ) < 1e-9,
     );
 });
-test("watched and loved names rotate daily under unchanged history", async (t) => {
+test("watched rotates every twelve hours while loved keeps its daily rotation", async (t) => {
   fail = false;
   force = true;
   histories.rotation = [histories.alice[0], histories.bob[0]];
   let now = 20000 * 86400000;
   t.mock.method(Date, "now", () => now);
-  const config = { profile: "rotation", recommendations: {} };
+  const config = { profile: "rotation", recommendations: {refresh_hours: 24} };
+  const {selectionKey} = require(path.join(root, "utils/recommendations/watchly.js"));
+  const key = selectionKey(config, "rotation-owner", "movie");
   const first = await selection(config, "rotation-owner", "movie");
-  now += 86400000;
+  assert.equal(cacheTtls.get(key), 43200);
+  now += 43200000 - 1000;
+  const beforeBoundary = await selection(config, "rotation-owner", "movie");
+  assert.equal(beforeBoundary.names.watched, first.names.watched);
+  assert.equal(cacheTtls.get(key), 1);
+  now += 1000;
   const next = await selection(config, "rotation-owner", "movie");
   assert.notEqual(first.names.watched, next.names.watched);
-  assert.notEqual(first.names.loved, next.names.loved);
+  assert.equal(first.names.loved, next.names.loved);
+  now += 43200000;
+  const tomorrow = await selection(config, "rotation-owner", "movie");
+  assert.notEqual(first.names.loved, tomorrow.names.loved);
 });
 
 test("watched rotates across ten latest completed titles and excludes other states", async (t) => {
@@ -215,13 +227,13 @@ test("watched rotates across ten latest completed titles and excludes other stat
   const config = {profile: "tenCompleted", recommendations: {}};
   const names = [];
   for (let i = 0; i < 10; i++) {
-    now = day + i * 86400000;
+    now = day + i * 43200000;
     const result = await selection(config, "completed-owner", "movie");
     names.push(result.names.watched);
   }
   assert.equal(new Set(names).size, 10);
   assert.deepEqual(new Set(names), new Set(Array.from({length: 10}, (_, i) => "Because you watched Pick " + (10 + i))));
-  now = day + 10 * 86400000;
+  now = day + 10 * 43200000;
   assert.equal((await selection(config, "completed-owner", "movie")).names.watched, names[0]);
   histories.noCompleted = [make(50, "watching", 0), make(51, "dropped", 1)];
   const empty = await selection({profile: "noCompleted", recommendations: {}}, "completed-owner", "movie");
