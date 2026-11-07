@@ -40,6 +40,7 @@ export interface Selection {
   builtAt: string;
 }
 const active = new Map<string, Promise<Selection>>();
+const WATCHED_SEED_VERSION = 2;
 
 async function batches<T, U>(
   values: T[],
@@ -97,6 +98,7 @@ export function selectionKey(config: any, uuid: string, pool: Pool) {
     config.recommendations?.ai_names === true ? resolveProvider(config) : null;
   const settings = JSON.stringify([
     config.recommendations,
+    WATCHED_SEED_VERSION,
     resolveSources(config).choice,
     config.apiKeys?.simklTokenId,
     config.apiKeys?.mdblist,
@@ -217,6 +219,8 @@ async function build(
         ...[...history]
           .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
           .slice(0, 60),
+        // Keep the ten latest completions even when ongoing titles fill the recent sample.
+        ...history.filter((row) => row.status === "completed").slice(0, 10),
         ...history,
       ].map((row) => [row.key, row]),
     ).values(),
@@ -236,6 +240,7 @@ async function build(
       return item
         ? {
             title: item,
+            completed: row.status === "completed",
             history: {
               imdb: row.imdbId || "",
               rating: row.rating,
@@ -250,8 +255,13 @@ async function build(
   ).filter(Boolean);
   const profile = buildProfile(enriched, type, Date.now());
   const day = Math.floor(Date.now() / 86400000);
-  const recent = enriched.slice(0, 3)[day % Math.min(3, enriched.length)]
-    ?.title;
+  const completedTitles = enriched
+    .filter((item) => item.completed)
+    .sort((a, b) => (b.history.watchedAt ?? 0) - (a.history.watchedAt ?? 0))
+    .slice(0, 10);
+  const recent = completedTitles.length
+    ? completedTitles[day % completedTitles.length].title
+    : undefined;
   const lovedTitles = enriched
     .filter((item) => (item.history.rating ?? 0) >= 9)
     .slice(0, 3);

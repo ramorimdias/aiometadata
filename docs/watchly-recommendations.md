@@ -6,7 +6,7 @@ The engine builds a taste profile from the selected viewer's watch history and r
 
 Each profile uses AIOMetadata's existing history and account scoping. Tracker credentials and playback reporting use the native implementation. Recommendation discovery preferences and row switches are shared by the configuration. The viewer selector changes the history source preference and the target of a manual refresh.
 
-Discovery settings include style, release years, excluded movie and series genres, keyword exclusions and refresh hours. Animation exclusions also apply to anime rows. New configurations use a six-hour refresh interval. Watched and loved seed titles rotate daily through up to three recent choices. The full watched index excludes titles already seen. Candidate discovery expands across pages and related genres to fill sparse rows.
+Discovery settings include style, release years, excluded movie and series genres, keyword exclusions and refresh hours. Animation exclusions also apply to anime rows. New configurations use a six-hour refresh interval. “Because You Watched” rotates daily through the ten most recently completed titles for that viewer and media type (or all available completions when fewer than ten exist). Watching, held, dropped and planned titles are excluded from this seed pool. “Because You Loved” keeps its existing three-title daily rotation. The full watched index excludes titles already seen. Candidate discovery expands across pages and related genres to fill sparse rows.
 
 Selections are cached per viewer, media pool, source and settings. Active viewers refresh before the selection expires. A failed refresh reuses the last successful selection for up to seven days. Per-title TMDB metadata uses the existing shared cache.
 

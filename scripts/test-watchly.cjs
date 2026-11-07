@@ -197,6 +197,40 @@ test("watched and loved names rotate daily under unchanged history", async (t) =
   assert.notEqual(first.names.loved, next.names.loved);
 });
 
+test("watched rotates across ten latest completed titles and excludes other states", async (t) => {
+  fail = false;
+  force = true;
+  const day = 21000 * 86400000;
+  let now = day;
+  t.mock.method(Date, "now", () => now);
+  const make = (id, status, age) => ({
+    key: "tt" + id, imdbId: "tt" + id, tmdbId: id,
+    title: "Pick " + id, kind: "movie", tmdbType: "movie", status,
+    watchedAt: new Date(day - age * 86400000).toISOString(),
+  });
+  histories.tenCompleted = [
+    ...Array.from({length: 12}, (_, i) => make(10 + i, "completed", i + 1)).reverse(),
+    ...["watching", "hold", "dropped", "plantowatch"].map((status, i) => make(40 + i, status, 0)),
+  ];
+  const config = {profile: "tenCompleted", recommendations: {}};
+  const names = [];
+  for (let i = 0; i < 10; i++) {
+    now = day + i * 86400000;
+    const result = await selection(config, "completed-owner", "movie");
+    names.push(result.names.watched);
+  }
+  assert.equal(new Set(names).size, 10);
+  assert.deepEqual(new Set(names), new Set(Array.from({length: 10}, (_, i) => "Because you watched Pick " + (10 + i))));
+  now = day + 10 * 86400000;
+  assert.equal((await selection(config, "completed-owner", "movie")).names.watched, names[0]);
+  histories.noCompleted = [make(50, "watching", 0), make(51, "dropped", 1)];
+  const empty = await selection({profile: "noCompleted", recommendations: {}}, "completed-owner", "movie");
+  assert.equal(empty.names.watched, "Because You Watched");
+  assert.equal(empty.rows.watched, undefined);
+  histories.oneCompleted = [make(60, "completed", 2), make(61, "watching", 0)];
+  assert.equal((await selection({profile: "oneCompleted", recommendations: {}}, "completed-owner", "movie")).names.watched, "Because you watched Pick 60");
+});
+
 test("AI naming uses the configured model, caches labels and only renames genre and theme shelves", async () => {
   force = false;
   let calls = 0;
