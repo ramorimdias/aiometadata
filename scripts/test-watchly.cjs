@@ -104,7 +104,7 @@ stub("lib/getTmdb.js", {
     ),
   }),
   discoverTv: async () => ({
-    results: [100, 101].map((id) => detail(id, true)),
+    results: [100, 101, 102].map((id) => detail(id, true)),
   }),
 });
 const { selection, selectionKey } = require(
@@ -191,8 +191,13 @@ test("watched rotates every twelve hours while loved keeps its daily rotation", 
   histories.rotation = [histories.alice[0], histories.bob[0]];
   let now = 20000 * 86400000;
   t.mock.method(Date, "now", () => now);
-  const config = { profile: "rotation", recommendations: {refresh_hours: 24} };
-  const {selectionKey} = require(path.join(root, "utils/recommendations/watchly.js"));
+  const config = {
+    profile: "rotation",
+    recommendations: { refresh_hours: 24 },
+  };
+  const { selectionKey } = require(
+    path.join(root, "utils/recommendations/watchly.js"),
+  );
   const key = selectionKey(config, "rotation-owner", "movie");
   const first = await selection(config, "rotation-owner", "movie");
   assert.equal(cacheTtls.get(key), 43200);
@@ -216,15 +221,24 @@ test("watched rotates across ten latest completed titles and excludes other stat
   let now = day;
   t.mock.method(Date, "now", () => now);
   const make = (id, status, age) => ({
-    key: "tt" + id, imdbId: "tt" + id, tmdbId: id,
-    title: "Pick " + id, kind: "movie", tmdbType: "movie", status,
+    key: "tt" + id,
+    imdbId: "tt" + id,
+    tmdbId: id,
+    title: "Pick " + id,
+    kind: "movie",
+    tmdbType: "movie",
+    status,
     watchedAt: new Date(day - age * 86400000).toISOString(),
   });
   histories.tenCompleted = [
-    ...Array.from({length: 12}, (_, i) => make(10 + i, "completed", i + 1)).reverse(),
-    ...["watching", "hold", "dropped", "plantowatch"].map((status, i) => make(40 + i, status, 0)),
+    ...Array.from({ length: 12 }, (_, i) =>
+      make(10 + i, "completed", i + 1),
+    ).reverse(),
+    ...["watching", "hold", "dropped", "plantowatch"].map((status, i) =>
+      make(40 + i, status, 0),
+    ),
   ];
-  const config = {profile: "tenCompleted", recommendations: {}};
+  const config = { profile: "tenCompleted", recommendations: {} };
   const names = [];
   for (let i = 0; i < 10; i++) {
     now = day + i * 43200000;
@@ -232,15 +246,39 @@ test("watched rotates across ten latest completed titles and excludes other stat
     names.push(result.names.watched);
   }
   assert.equal(new Set(names).size, 10);
-  assert.deepEqual(new Set(names), new Set(Array.from({length: 10}, (_, i) => "Because you watched Pick " + (10 + i))));
+  assert.deepEqual(
+    new Set(names),
+    new Set(
+      Array.from(
+        { length: 10 },
+        (_, i) => "Because you watched Pick " + (10 + i),
+      ),
+    ),
+  );
   now = day + 10 * 43200000;
-  assert.equal((await selection(config, "completed-owner", "movie")).names.watched, names[0]);
+  assert.equal(
+    (await selection(config, "completed-owner", "movie")).names.watched,
+    names[0],
+  );
   histories.noCompleted = [make(50, "watching", 0), make(51, "dropped", 1)];
-  const empty = await selection({profile: "noCompleted", recommendations: {}}, "completed-owner", "movie");
+  const empty = await selection(
+    { profile: "noCompleted", recommendations: {} },
+    "completed-owner",
+    "movie",
+  );
   assert.equal(empty.names.watched, "Because You Watched");
   assert.equal(empty.rows.watched, undefined);
   histories.oneCompleted = [make(60, "completed", 2), make(61, "watching", 0)];
-  assert.equal((await selection({profile: "oneCompleted", recommendations: {}}, "completed-owner", "movie")).names.watched, "Because you watched Pick 60");
+  assert.equal(
+    (
+      await selection(
+        { profile: "oneCompleted", recommendations: {} },
+        "completed-owner",
+        "movie",
+      )
+    ).names.watched,
+    "Because you watched Pick 60",
+  );
 });
 
 test("AI naming uses the configured model, caches labels and only renames genre and theme shelves", async () => {
@@ -253,7 +291,9 @@ test("AI naming uses the configured model, caches labels and only renames genre 
       assert.equal(options.useGrounding, false);
       assert.equal(options.maxTokens, 2048);
       const input = JSON.parse(options.prompt);
-      assert.ok(input.rows.every((row) => /^(genres|themes)(-[23])?$/.test(row.id)));
+      assert.ok(
+        input.rows.every((row) => /^(genres|themes)(-[23])?$/.test(row.id)),
+      );
       return {
         text: JSON.stringify({
           genres: "Drama",
@@ -305,10 +345,20 @@ test("AI naming uses the configured model, caches labels and only renames genre 
   assert.equal(named.genres, "Drama");
   assert.equal(named.themes, "Based on Books");
   assert.equal(named.watched, defaults.watched);
-  for (const id of ["top", "creators", "positive"]) assert.equal(named[id], defaults[id]);
+  for (const id of ["top", "creators", "positive"])
+    assert.equal(named[id], defaults[id]);
   assert.equal(named["genres-2"], "Action");
   assert.equal(named["themes-3"], "Book Adaptations");
-  assert.deepEqual(await nameCatalogs(config, "owner", "anime-movie", {top: "Top Picks for You (Anime)"}, {top: [{title: "Anime pick"}]}), {top: "Top Picks for You (Anime)"});
+  assert.deepEqual(
+    await nameCatalogs(
+      config,
+      "owner",
+      "anime-movie",
+      { top: "Top Picks for You (Anime)" },
+      { top: [{ title: "Anime pick" }] },
+    ),
+    { top: "Top Picks for You (Anime)" },
+  );
   assert.deepEqual(
     await nameCatalogs(config, "owner", "series", defaults, rows),
     named,
@@ -349,16 +399,105 @@ test("AI naming uses the configured model, caches labels and only renames genre 
   );
 });
 
-
 test("saving catalogs preserves omitted AI naming and respects explicit disabling", () => {
-  const { preserveAiNaming } = require(path.join(root, "utils/recommendations/settings.js"));
+  const { preserveAiNaming } = require(
+    path.join(root, "utils/recommendations/settings.js"),
+  );
   const previous = { recommendations: { ai_names: true } };
-  const saved = preserveAiNaming({ catalogs: [{id: "recommendations.series.themes-2", enabled: true}], recommendations: {refresh_hours: 12} }, previous);
+  const saved = preserveAiNaming(
+    {
+      catalogs: [{ id: "recommendations.series.themes-2", enabled: true }],
+      recommendations: { refresh_hours: 12 },
+    },
+    previous,
+  );
   assert.equal(saved.recommendations.ai_names, true);
   assert.equal(saved.recommendations.refresh_hours, 12);
   assert.equal(saved.catalogs[0].enabled, true);
-  assert.equal(preserveAiNaming({recommendations: {ai_names: false}}, previous).recommendations.ai_names, false);
+  assert.equal(
+    preserveAiNaming({ recommendations: { ai_names: false } }, previous)
+      .recommendations.ai_names,
+    false,
+  );
   assert.equal(preserveAiNaming({}, previous).recommendations.ai_names, true);
   assert.equal(preserveAiNaming({}, {}).recommendations, undefined);
-  assert.equal(preserveAiNaming({recommendations: {ai_names: true}}, {recommendations: {ai_names: false}}).recommendations.ai_names, true);
+  assert.equal(
+    preserveAiNaming(
+      { recommendations: { ai_names: true } },
+      { recommendations: { ai_names: false } },
+    ).recommendations.ai_names,
+    true,
+  );
+});
+
+test("anime watched catalogs use completed anime seeds, keep media types and publish dynamic names", async () => {
+  fail = false;
+  force = true;
+  histories.animeMovie = [
+    {
+      ...histories.alice[0],
+      key: "tt100",
+      imdbId: "tt100",
+      tmdbId: 100,
+      kind: "anime",
+      status: "completed",
+    },
+    {
+      ...histories.bob[0],
+      key: "tt101",
+      imdbId: "tt101",
+      tmdbId: 101,
+      kind: "anime",
+      status: "watching",
+    },
+    histories.alice[0],
+  ];
+  histories.animeSeries = histories.animeMovie.map((x) => ({
+    ...x,
+    tmdbType: "tv",
+  }));
+  const { RECOMMENDATION_CATALOGS, recommendationName } = require(
+    path.join(root, "utils/recommendations/catalog.js"),
+  );
+  for (const [profile, pool, type, id] of [
+    [
+      "animeMovie",
+      "anime-movie",
+      "movie",
+      "recommendations.anime-movies.watched",
+    ],
+    [
+      "animeSeries",
+      "anime-series",
+      "series",
+      "recommendations.anime-series.watched",
+    ],
+  ]) {
+    const config = { profile, recommendations: {} };
+    const entry = RECOMMENDATION_CATALOGS.find((x) => x.id === id);
+    assert.equal(entry.type, type);
+    assert.equal(entry.pool, pool);
+    const result = await selection(config, "anime-owner", pool);
+    assert.equal(result.names.watched, "Because you watched Pick 100 (Anime)");
+    assert.ok(result.rows.watched.length > 0);
+    assert.ok(
+      result.rows.watched.every(
+        (x) =>
+          x.kind === type &&
+          animeIds.has(x.tmdbId) &&
+          x.tmdbId !== 100 &&
+          x.tmdbId !== 101,
+      ),
+    );
+    assert.equal(
+      await recommendationName(id, config, "anime-owner"),
+      result.names.watched,
+    );
+  }
+  const empty = await selection(
+    { profile: "new-user", recommendations: {} },
+    "anime-owner",
+    "anime-series",
+  );
+  assert.equal(empty.rows.watched, undefined);
 });

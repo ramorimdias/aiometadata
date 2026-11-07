@@ -31,3 +31,5 @@ Enable **AI theme and genre names** in Recommendations to use the linked Gemini 
 The watched and loved rows retain their concrete seed titles. Other rows receive concise headings based on their content. Missing credentials, failed requests and invalid labels fall back to the descriptive names. Catalog IDs remain stable, so upstream-name preferences in AIOStreams still apply.
 
 AI naming survives configuration updates from older setup clients that omit the option. Explicitly switching it off still disables it. Both new and updated configurations warm their recommendation names in the background.
+
+Optional **Because You Watched (Anime)** rows are available separately for movies and series. Enable them in Recommendations and save. They use only completed anime seeds from that viewer's corresponding media pool, rotate across the last ten completions every 12 hours, and exclude watched titles and non-anime results. Their headings include the selected anime title. No completed anime history means there is no seed and the row is empty. Existing rows are unchanged and the new rows are disabled until selected.

@@ -188,9 +188,13 @@ export function RecommendationsIntegration({
     for (const catalog of config.catalogs) {
       if (!catalog.enabled || !catalog.id.startsWith("recommendations."))
         continue;
-      const pool = catalog.id.startsWith("recommendations.anime")
-        ? catalog.id
-        : catalog.type;
+      const pool = catalog.id.startsWith("recommendations.anime-movies")
+        ? "anime-movie"
+        : catalog.id.startsWith("recommendations.anime-series")
+          ? "anime-series"
+          : catalog.id === "recommendations.anime"
+            ? "anime"
+            : catalog.type;
       if (!pools.has(pool)) pools.set(pool, catalog.id);
     }
     const ids = [...pools.values()];
@@ -299,7 +303,8 @@ export function RecommendationsIntegration({
           <h3 className="font-semibold">Recommendation rows</h3>
           <p className="text-sm text-muted-foreground">
             Row switches are shared by this configuration. Titles and picks are
-            personalized for each viewer.
+            personalized for each viewer. Anime watched rows need completed
+            anime history for the selected media type.
           </p>
           {config.catalogs.some(
             (catalog) => catalog.id === "recommendations.anime",
@@ -330,33 +335,33 @@ export function RecommendationsIntegration({
             <span>Catalog</span>
             <span>Movies</span>
             <span>Series</span>
-            {[...ROWS, ["anime", "Top Picks for You (Anime)"]].map(
-              ([row, name]) => (
-                <div key={row} className="contents">
-                  <span>{name}</span>
-                  {(["movie", "series"] as const).map((type) => {
-                    const id =
-                      row === "anime"
-                        ? "recommendations.anime-" +
-                          (type === "movie" ? "movies" : "series")
-                        : catalogId(type, row);
-                    const enabled =
-                      config.catalogs.find((c) => c.id === id)?.enabled ===
-                      true;
-                    return (
-                      <Switch
-                        key={id}
-                        aria-label={name + " " + type}
-                        checked={enabled}
-                        onCheckedChange={(value) =>
-                          toggle(id, name, type, value)
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              ),
-            )}
+            {[
+              ...ROWS,
+              ["anime", "Top Picks for You (Anime)"],
+              ["anime-watched", "Because You Watched (Anime)"],
+            ].map(([row, name]) => (
+              <div key={row} className="contents">
+                <span>{name}</span>
+                {(["movie", "series"] as const).map((type) => {
+                  const id =
+                    row === "anime" || row === "anime-watched"
+                      ? "recommendations.anime-" +
+                        (type === "movie" ? "movies" : "series") +
+                        (row === "anime-watched" ? ".watched" : "")
+                      : catalogId(type, row);
+                  const enabled =
+                    config.catalogs.find((c) => c.id === id)?.enabled === true;
+                  return (
+                    <Switch
+                      key={id}
+                      aria-label={name + " " + type}
+                      checked={enabled}
+                      onCheckedChange={(value) => toggle(id, name, type, value)}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </section>
         <section className="space-y-4 rounded-xl border p-4">
@@ -365,11 +370,13 @@ export function RecommendationsIntegration({
           </h3>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label htmlFor="recommendation-ai-names">AI theme and genre names</Label>
+              <Label htmlFor="recommendation-ai-names">
+                AI theme and genre names
+              </Label>
               <p className="text-sm text-muted-foreground">
-                Uses your linked AI provider and model to name theme and genre rows from their
-                topics and a few recommendation titles. Labels are cached and
-                update when recommendations refresh.
+                Uses your linked AI provider and model to name theme and genre
+                rows from their topics and a few recommendation titles. Labels
+                are cached and update when recommendations refresh.
               </p>
             </div>
             <Switch

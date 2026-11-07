@@ -40,12 +40,14 @@ export interface Selection {
   builtAt: string;
 }
 const active = new Map<string, Promise<Selection>>();
-const WATCHED_SEED_VERSION = 3;
+const WATCHED_SEED_VERSION = 4;
 const WATCHED_ROTATION_MS = 12 * 60 * 60 * 1000;
 
 // Expire at the next seed change even when the configured refresh interval is longer.
 function selectionTtl(config: any): number {
-  const untilNextRotation = Math.ceil((WATCHED_ROTATION_MS - Date.now() % WATCHED_ROTATION_MS) / 1000);
+  const untilNextRotation = Math.ceil(
+    (WATCHED_ROTATION_MS - (Date.now() % WATCHED_ROTATION_MS)) / 1000,
+  );
   return Math.max(1, Math.min(86400, refreshTtl(config), untilNextRotation));
 }
 
@@ -262,11 +264,20 @@ async function build(
   const profile = buildProfile(enriched, type, Date.now());
   const day = Math.floor(Date.now() / 86400000);
   const completedTitles = enriched
-    .filter((item) => item.completed)
+    .filter(
+      (item) =>
+        item.completed &&
+        (!anime ||
+          (item.title.genres.includes("16") &&
+            (item.title.language === "ja" ||
+              item.title.countries.includes("JP")))),
+    )
     .sort((a, b) => (b.history.watchedAt ?? 0) - (a.history.watchedAt ?? 0))
     .slice(0, 10);
   const recent = completedTitles.length
-    ? completedTitles[Math.floor(Date.now() / WATCHED_ROTATION_MS) % completedTitles.length].title
+    ? completedTitles[
+        Math.floor(Date.now() / WATCHED_ROTATION_MS) % completedTitles.length
+      ].title
     : undefined;
   const lovedTitles = enriched
     .filter((item) => (item.history.rating ?? 0) >= 9)
@@ -333,30 +344,6 @@ async function build(
             : seed?.title.keywordNames)?.[id] || names[row];
       });
     }
-    await batches(
-      [
-        ["watched", recent],
-        ["loved", loved],
-      ] as const,
-      async ([row, seed]) => {
-        if (!seed) return;
-        names[row] =
-          "Because you " +
-          (row === "watched" ? "watched " : "loved ") +
-          seed.name;
-        const replies = await batches([1, 2, 3], (page) =>
-          (type === "movie"
-            ? tmdb.movieRecommendations
-            : tmdb.tvRecommendations)({ id: seed.id, page }, config),
-        );
-        const direct = replies.flatMap((reply: any) => reply?.results ?? []);
-        pools.set(row, direct);
-        if (seed.genres.length) {
-          await discover(row, { with_genres: seed.genres.join("|") });
-          pools.set(row, [...direct, ...pools.get(row)!]);
-        }
-      },
-    );
     const creators = [
       ...preferred(profile, "directors"),
       ...preferred(profile, "cast"),
@@ -389,6 +376,44 @@ async function build(
       favoritesReplies.flatMap((reply: any) => reply?.results ?? []),
     );
   }
+  await batches(
+    anime
+      ? [["watched", recent] as const]
+      : ([
+          ["watched", recent],
+          ["loved", loved],
+        ] as const),
+    async ([row, seed]) => {
+      if (!seed) return;
+      names[row] =
+        "Because you " +
+        (row === "watched" ? "watched " : "loved ") +
+        seed.name +
+        (anime ? " (Anime)" : "");
+      const replies = await batches([1, 2, 3], (page) =>
+        (type === "movie" ? tmdb.movieRecommendations : tmdb.tvRecommendations)(
+          { id: seed.id, page },
+          config,
+        ),
+      );
+      const direct = replies.flatMap((reply: any) => reply?.results ?? []);
+      pools.set(row, direct);
+      if (seed.genres.length) {
+        await discover(
+          row,
+          anime
+            ? {
+                with_genres: "16",
+                ...(seed.keywords.length
+                  ? { with_keywords: seed.keywords.slice(0, 3).join("|") }
+                  : {}),
+              }
+            : { with_genres: seed.genres.join("|") },
+        );
+        pools.set(row, [...direct, ...pools.get(row)!]);
+      }
+    },
+  );
   if (anime) {
     await batches(themes.slice(0, 2), (id) =>
       discover("_theme-" + id, { with_keywords: id }),
@@ -400,7 +425,12 @@ async function build(
     if (language)
       await discover("_language", { with_original_language: language });
   }
-  pools.set("top", [...pools.values()].flat());
+  pools.set(
+    "top",
+    [...pools.entries()]
+      .filter(([row]) => !anime || row !== "watched")
+      .flatMap(([, picks]) => picks),
+  );
   for (const key of pools.keys()) {
     if (key.startsWith("_")) pools.delete(key);
   }
