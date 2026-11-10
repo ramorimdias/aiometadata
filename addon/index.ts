@@ -741,6 +741,7 @@ addon.use(requireSigninForApi);
 
 // --- Configuration Database API Routes ---
 addon.post("/api/config/save", configApi.saveConfig.bind(configApi));
+addon.post("/api/config/crosswatch/check/:userUUID", configLoadRateLimitMiddleware, configApi.testCrosswatch);
 addon.post("/api/config/load/:userUUID", configLoadRateLimitMiddleware, configApi.loadConfig.bind(configApi));
 addon.put("/api/config/update/:userUUID", configApi.updateConfig.bind(configApi));
 addon.get('/api/config/is-trusted/:uuid', configApi.isTrusted.bind(configApi));

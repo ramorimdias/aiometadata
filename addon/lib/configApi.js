@@ -647,7 +647,42 @@ class ConfigApi {
   // async clearCache(req, res) { ... }
 
   // Load configuration by UUID (requires password)
-    async loadConfig(req, res) {
+    async testCrosswatch(req, res) {
+    try {
+      await this.initialize();
+      const { userUUID } = req.params;
+      const { password, addonPassword, crosswatch, viewerIds } = req.body || {};
+      const accountId = req.session?.accountId;
+      const owner = accountId && await database.ownsConfig(accountId, userUUID);
+      if (!owner) {
+        if (!await database.isUUIDTrusted(userUUID) && process.env.ADDON_PASSWORD && addonPassword !== process.env.ADDON_PASSWORD) {
+          return res.status(401).json({ error: 'Sign in to your saved AIOMetadata configuration first.' });
+        }
+        if (typeof password !== 'string' || !password || !await database.verifyUserAndGetConfig(userUUID, password)) {
+          return res.status(401).json({ error: 'Sign in to your saved AIOMetadata configuration first.' });
+        }
+      }
+      if (!Array.isArray(viewerIds) || viewerIds.length > 50 ||
+          viewerIds.some(id => typeof id !== 'string' || !id || id.length > 128)) {
+        return res.status(400).json({ error: 'Invalid viewer list.' });
+      }
+      const { checkCrosswatch } = require('./crosswatch');
+      try {
+        const viewers = await checkCrosswatch({
+          crosswatch: crosswatch ?? null,
+          crosswatchWatchTracking: true,
+          jellyfinUsers: viewerIds.map(id => ({ id })),
+        }, userUUID);
+        return res.json({ viewers });
+      } catch (error) {
+        return res.status(422).json({ error: error.message });
+      }
+    } catch {
+      return res.status(500).json({ error: 'Could not check CrossWatch.' });
+    }
+  }
+
+  async loadConfig(req, res) {
     try {
       await this.initialize();
       const { userUUID } = req.params;
@@ -1632,5 +1667,6 @@ module.exports = {
   loadConfigFromDatabase: configApi.loadConfigFromDatabase.bind(configApi),
   loadSharedConfig: configApi.loadSharedConfig.bind(configApi),
   loadRouteConfig: configApi.loadRouteConfig.bind(configApi),
+  testCrosswatch: configApi.testCrosswatch.bind(configApi),
   testApiKeys: configApi.testApiKeys.bind(configApi)
 };

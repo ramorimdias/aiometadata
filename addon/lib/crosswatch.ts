@@ -109,7 +109,7 @@ async function requestPublic(url: URL, headers: Record<string, string>, body?: s
   }
 }
 
-async function request(target: Target, path: string, payload?: unknown): Promise<any> {
+async function request(target: Connection, path: string, payload?: unknown): Promise<any> {
   const url = target.trusted ? new URL(path, target.url) : new URL(target.url + path);
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   const headers = { Authorization: `Bearer ${target.token}`, 'Content-Type': 'application/json' };
@@ -135,6 +135,44 @@ async function request(target: Target, path: string, payload?: unknown): Promise
   noteCrosswatchCall(ok ? status : httpOk ? 422 : status === 409 ? 503 : status, retryAfter);
   if (!ok) throw new Error(`CrossWatch rejected the operation (HTTP ${status})`);
   return data;
+}
+
+export async function checkCrosswatch(config: any, userUUID: string) {
+  const connection = connectionOf(config);
+  if (!connection || connection.trusted) {
+    throw new Error('Enter a public HTTPS CrossWatch URL and API token.');
+  }
+
+  const profiles = await request(connection, '/api/user-profiles');
+  if (!Array.isArray(profiles.items)) throw new Error('CrossWatch returned an unexpected profile list.');
+  const viewers = ['', ...config.jellyfinUsers.map((user: { id: string }) => user.id)];
+  const targets = viewers.map((id) => ({ id, target: crosswatchTarget(config, userUUID, id) }));
+  const pairs = targets.some(({ target }) => target?.removalPair)
+    ? await request(connection, '/api/pairs').catch(() => null)
+    : [];
+  return targets.map(({ id, target }) => {
+    const mapping = config.crosswatch.viewers?.[id];
+    if (!mapping?.profile && !mapping?.instance && !mapping?.removalPair) return { id, status: 'Not linked' };
+    if (!target) return { id, status: 'Enter a profile ID and a unique local tracker ID.' };
+    const profile = profiles.items.find((row: any) => row.id === target.profile);
+    if (!profile) return { id, status: 'Profile ID was not found or is unavailable to this token.' };
+    const instances = Object.entries(profile.instances ?? {}).find(([provider]) => provider.toUpperCase() === 'CROSSWATCH')?.[1];
+    if (!Array.isArray(instances) || !instances.includes(target.instance)) {
+      return { id, status: 'This local tracker is not assigned to the selected profile.' };
+    }
+    if (!target.removalPair) return { id, status: 'Profile and tracker verified. Removal is off.' };
+    if (!Array.isArray(pairs)) return { id, status: 'Profile and tracker verified. The token could not read sync pairs.' };
+    const pair = pairs.find((row: any) => row.id === target.removalPair);
+    const hasTracker = ['source', 'target'].some((side) =>
+      pair?.[side] === 'CROSSWATCH' && pair?.[`${side}_instance`] === target.instance);
+    if (!hasTracker || pair.profile_id !== target.profile) {
+      return { id, status: 'Removal pair does not match this profile and tracker.' };
+    }
+    if (pair.enabled === false || pair.features?.history?.enable !== true || pair.features.history.remove !== true) {
+      return { id, status: 'Removal pair needs an enabled History → Remove setting.' };
+    }
+    return { id, status: 'Profile, tracker and removal pair verified.' };
+  });
 }
 
 export async function crosswatchHistory(target: Target, kind: 'history' | 'ratings' = 'history'): Promise<any[]> {

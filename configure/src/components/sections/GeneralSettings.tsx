@@ -37,10 +37,42 @@ function CrosswatchConnectionFields({ config, onChange }: {
   onChange: (connection: CrosswatchSettings) => void;
 }) {
   const connection = config.crosswatch ?? emptyCrosswatch;
+  const { auth } = useConfig();
+  const [checking, setChecking] = useState(false);
+  const [check, setCheck] = useState<{
+    connection: CrosswatchSettings;
+    error?: string;
+    viewers?: { id: string; status: string }[];
+  }>();
   const viewers = [
     { id: '', name: 'Main viewer' },
     ...(config.jellyfinUsers ?? []),
   ];
+  const checkConnection = async () => {
+    if (!auth.userUUID) return;
+    setChecking(true);
+    setCheck(undefined);
+    try {
+      const response = await fetch(`/api/config/crosswatch/check/${encodeURIComponent(auth.userUUID)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: auth.password,
+          crosswatch: connection,
+          viewerIds: viewers.slice(1).map(({ id }) => id),
+        }),
+        signal: AbortSignal.timeout(35_000),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not check CrossWatch.');
+      setCheck({ connection, viewers: data.viewers });
+    } catch (error) {
+      setCheck({ connection, error: error instanceof Error ? error.message : 'Could not check CrossWatch.' });
+    } finally {
+      setChecking(false);
+    }
+  };
+  const currentCheck = check?.connection === connection ? check : undefined;
   const trackerIds = viewers.map(({ id }) => connection.viewers?.[id]?.instance?.trim().toLowerCase()).filter(Boolean);
   const hasDuplicateTracker = new Set(trackerIds).size !== trackerIds.length;
   const setMapping = (id: string, field: 'profile' | 'instance' | 'removalPair', value: string) => {
@@ -70,6 +102,22 @@ function CrosswatchConnectionFields({ config, onChange }: {
       <p className="text-sm text-muted-foreground">
         Use your CrossWatch server’s public HTTPS address. Enter the profile ID and its assigned CrossWatch local tracker ID for each viewer you want to link. Use a different local tracker for each viewer.
       </p>
+      <div className="space-y-2">
+        <Button type="button" variant="outline" onClick={checkConnection}
+          disabled={checking || !auth.userUUID || !connection.url?.trim() || !connection.token?.trim()}>
+          {checking ? 'Checking CrossWatch…' : 'Test connection'}
+        </Button>
+        {!auth.userUUID && <p className="text-sm text-muted-foreground">Save and sign in to this AIOMetadata configuration to test it.</p>}
+        {currentCheck?.error && <p role="alert" className="text-sm text-destructive">{currentCheck.error}</p>}
+        {currentCheck?.viewers && (
+          <div role="status" className="space-y-1 text-sm">
+            <p>Connected to CrossWatch. No watch history was changed.</p>
+            {currentCheck.viewers.map(({ id, status }) => (
+              <p key={id} className="text-muted-foreground"><strong>{viewers.find((viewer) => viewer.id === id)?.name}</strong> · {status}</p>
+            ))}
+          </div>
+        )}
+      </div>
       {hasDuplicateTracker && (
         <p role="alert" className="text-sm text-destructive">Viewers sharing a local tracker ID will be skipped. Enter a different ID for each viewer.</p>
       )}
