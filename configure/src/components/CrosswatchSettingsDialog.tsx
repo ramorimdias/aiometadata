@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Settings2 } from 'lucide-react';
+import { CheckCircle, Loader2, Settings2 } from 'lucide-react';
 import { Callout } from '@/components/settings/Callout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -54,6 +54,7 @@ export function CrosswatchSettingsDialog() {
   const currentCheck = check?.connection === connection ? check : undefined;
   const viewer = viewers.find(({ id }) => id === viewerId) ?? viewers[0];
   const mapping = connection.viewers?.[viewer.id];
+  const viewerResult = currentCheck?.viewers?.find(({ id }) => id === viewer.id);
   const trackerIds = viewers.map(({ id }) => connection.viewers?.[id]?.instance?.trim().toLowerCase()).filter(Boolean);
   const hasDuplicateTracker = new Set(trackerIds).size !== trackerIds.length;
   const setMapping = (id: string, field: 'profile' | 'instance' | 'removalPair', value: string) => {
@@ -93,6 +94,24 @@ export function CrosswatchSettingsDialog() {
                 value={connection.token} onChange={(event) => onChange({ ...connection, token: event.target.value })} />
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button type="button" variant="outline" size="sm" onClick={checkConnection}
+              disabled={checking || !auth.userUUID || !connection.url?.trim() || !connection.token?.trim()}>
+              {checking ? <Loader2 className="animate-spin" aria-hidden="true" />
+                : <CheckCircle className="text-muted-foreground" aria-hidden="true" />}
+              {checking ? 'Testing connection…' : 'Test connection'}
+            </Button>
+            {currentCheck?.viewers && (
+              <span role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CheckCircle className="size-4 text-green-500" aria-hidden="true" />
+                Connected to CrossWatch
+              </span>
+            )}
+          </div>
+          {currentCheck?.error && <p role="alert" className="text-xs text-destructive">{currentCheck.error}</p>}
+          {!auth.userUUID && (
+            <p className="text-xs text-muted-foreground">Save and sign in to test the connection.</p>
+          )}
         </div>
 
         <div className="space-y-3 border-t pt-4">
@@ -131,33 +150,14 @@ export function CrosswatchSettingsDialog() {
               onChange={(event) => setMapping(viewer.id, 'removalPair', event.target.value)} />
             <p id="crosswatch-removal-help" className="text-xs text-muted-foreground">Syncs Jellyfin’s Mark as unwatched action to CrossWatch.</p>
           </div>
+          {viewerResult && <p role="status" className="text-sm text-muted-foreground">{viewerResult.status}</p>}
         </div>
 
         {hasDuplicateTracker && (
           <div role="alert"><Callout variant="warn">Viewers sharing a local tracker ID will be skipped. Enter a different ID for each viewer.</Callout></div>
         )}
-        {currentCheck?.error && (
-          <div role="alert"><Callout variant="danger">{currentCheck.error}</Callout></div>
-        )}
-        {currentCheck?.viewers && (
-          <div role="status" className="space-y-2 rounded-lg border p-3">
-            <p className="text-sm font-medium">Connected to CrossWatch</p>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              {currentCheck.viewers.map(({ id, status }) => (
-                <li key={id}><strong className="font-medium text-foreground">{viewers.find((item) => item.id === id)?.name}</strong> · {status}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {auth.userUUID ? 'Use Save on the setup page to keep your changes.' : 'Save and sign in to this AIOMetadata configuration to test the connection.'}
-        </p>
+        <p className="text-xs text-muted-foreground">Use Save on the setup page to keep your changes.</p>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={checkConnection}
-            disabled={checking || !auth.userUUID || !connection.url?.trim() || !connection.token?.trim()}>
-            {checking && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-            {checking ? 'Checking…' : 'Test connection'}
-          </Button>
           <DialogClose asChild><Button type="button">Done</Button></DialogClose>
         </DialogFooter>
       </DialogContent>
