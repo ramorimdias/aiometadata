@@ -453,7 +453,11 @@ const positionMemo = new LRUCache<string, Map<string, ResumeRow>>({
 export async function trackerPositions(userUUID: string, config: any): Promise<Map<string, ResumeRow>> {
   const { profileKey, readsTrackers } = require('./profiles');
   if (!readsTrackers(config)) return new Map();
-  const key = `${userUUID}:${profileKey(config)}:${resumeSourcesFor(config).join(',')}:${generationOf(userUUID)}`;
+  const target = crosswatchTarget(config, userUUID);
+  const crosswatchKey = target
+    ? createHash('sha256').update(JSON.stringify([target.url, target.profile, target.instance])).digest('hex')
+    : '';
+  const key = `${userUUID}:${profileKey(config)}:${resumeSourcesFor(config).join(',')}:${crosswatchKey}:${generationOf(userUUID)}`;
   const held = positionMemo.get(key);
   if (held) return held;
   const { videoIdAliases } = require('./aliases');

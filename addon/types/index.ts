@@ -68,6 +68,11 @@ export interface UserConfig {
   malWatchTracking?: boolean;
   publicmetadbWatchTracking?: boolean;
   crosswatchWatchTracking?: boolean;
+  crosswatch?: {
+    url: string;
+    token: string;
+    viewers: Record<string, { profile: string; instance: string; removalPair?: string }>;
+  };
   /** Optional per-service media filters. Missing flags preserve legacy behavior and are treated as enabled. */
   watchTracking?: Partial<Record<
     'trakt' | 'simkl' | 'anilist' | 'mal' | 'mdblist' | 'publicmetadb',

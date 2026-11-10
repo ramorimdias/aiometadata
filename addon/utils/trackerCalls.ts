@@ -35,21 +35,23 @@ export async function recordingTrackerCalls(work: () => Promise<unknown>): Promi
 
 /** Status 0 is a request that never got an answer. */
 export function noteTrackerCall(url: string, status: number, body?: string, retryAfter?: string | number | null, retryAt?: number): void {
-  const calls = store.getStore();
-  if (!calls) return;
   let host: string;
   try {
     host = new URL(url).hostname;
   } catch {
     return;
   }
-  if (!TRACKER_HOSTS.has(host)) {
-    try {
-      if (!process.env.CROSSWATCH_URL || new URL(url).origin !== new URL(process.env.CROSSWATCH_URL).origin) return;
-    } catch {
-      return;
-    }
-  }
+  if (!TRACKER_HOSTS.has(host)) return;
+  recordCall(host, status, body, retryAfter, retryAt);
+}
+
+export function noteCrosswatchCall(status: number, retryAfter?: string | null): void {
+  recordCall('crosswatch', status, undefined, retryAfter);
+}
+
+function recordCall(host: string, status: number, body?: string, retryAfter?: string | number | null, retryAt?: number): void {
+  const calls = store.getStore();
+  if (!calls) return;
   const seconds = Number(retryAfter);
   calls.push({
     host,

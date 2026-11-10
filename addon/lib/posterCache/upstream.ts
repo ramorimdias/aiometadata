@@ -177,12 +177,12 @@ function imageTypeFromPath(url: string): string {
   }
 }
 
-async function resolvePublicUrl(rawUrl: string, opts: ResolveOptions = {}): Promise<ValidatedUpstream> {
+async function resolvePublicUrl(rawUrl: string, opts: ResolveOptions = {}, publicOnly = false): Promise<ValidatedUpstream> {
   const parsed = parseUpstreamUrl(rawUrl);
 
   const host = parsed.hostname.replace(/^\[|\]$/g, '');
-  const allowPrivate = (opts.allowPrivateHost === true && isPrivateArtAllowed())
-    || getAllowedPrivateHosts().has(host.toLowerCase());
+  const allowPrivate = !publicOnly && ((opts.allowPrivateHost === true && isPrivateArtAllowed())
+    || getAllowedPrivateHosts().has(host.toLowerCase()));
 
   if (net.isIP(host)) {
     if (!allowPrivate && isPrivateAddress(host)) {
@@ -318,6 +318,11 @@ async function getHostEntry(host: string, rawUrl: string, opts: ResolveOptions):
   } finally {
     resolving.delete(host);
   }
+}
+
+export async function resolveStrictPublicConnection(rawUrl: string): Promise<Connection> {
+  const { url, addresses } = await resolvePublicUrl(rawUrl, {}, true);
+  return { url, ...pinnedAgents(addresses, false) };
 }
 
 export async function resolveConnection(rawUrl: string, opts: ResolveOptions = {}): Promise<Connection> {

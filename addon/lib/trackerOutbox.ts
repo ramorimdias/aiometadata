@@ -80,7 +80,7 @@ function crosswatchLane(config: any, userUUID?: string): string | null {
   const target = crosswatchTarget(config, userUUID);
   if (!target) return null;
   return `crosswatch:${createHash('sha256').update(JSON.stringify([
-    process.env.CROSSWATCH_URL, userUUID, config.jellyfinProfileId || '', target.profile, target.instance,
+    target.url, userUUID, config.jellyfinProfileId || '', target.profile, target.instance,
   ])).digest('hex').slice(0, 24)}`;
 }
 

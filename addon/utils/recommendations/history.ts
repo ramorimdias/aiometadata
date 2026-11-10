@@ -290,7 +290,7 @@ export function runAsProfile<T>(config: any, userUUID: string, profileId: string
   const { withAccountOwner }: any = require('../../lib/accounts');
   const id = profileId && listProfiles(config, userUUID).some((profile: any) => profile.id === profileId) ? profileId : null;
   const key = id ? profileKey(scopeConfigToProfile(config, userUUID, id)) : '';
-  const viewerConfig = id ? withAccountOwner(config, id) : config;
+  const viewerConfig = id ? { ...withAccountOwner(config, id), jellyfinProfileId: id } : config;
   return runInViewerScope(false, () => {
     noteProfile(key);
     return fn(viewerConfig);
@@ -316,7 +316,7 @@ type Sources = { simkl: boolean; mdblist: boolean; local: boolean; choice: Histo
  *  should not enrol a viewing history into a model prompt. */
 export function resolveSources(config: any, everything = false, userUUID?: string): Sources {
   if (!everything && config.crosswatchWatchTracking === true &&
-      (!userUUID || crosswatchTarget(config, userUUID, viewerOf(config, userUUID).profile))) {
+      (!userUUID || crosswatchTarget(config, userUUID, config.jellyfinProfileId ?? viewerOf(config, userUUID).profile))) {
     return { simkl: false, mdblist: false, local: false, choice: 'crosswatch' };
   }
   const keys = trackerKeys(config);
@@ -361,8 +361,8 @@ export async function collectWatchedRows(config: any, userUUID?: string, options
 
   const sources = resolveSources(config, everything, userUUID);
   const fingerprint = await historyFingerprint(config, userUUID, sources);
-  const target = crosswatchTarget(config, userUUID, viewerOf(config, userUUID).profile);
-  const targetKey = target ? JSON.stringify([target.profile, target.instance]) : '';
+  const target = crosswatchTarget(config, userUUID, config.jellyfinProfileId ?? viewerOf(config, userUUID).profile);
+  const targetKey = target ? JSON.stringify([target.url, target.profile, target.instance]) : '';
 
   const { cacheWrapGlobal }: any = require('../../lib/getCache');
   return cacheWrapGlobal(
@@ -425,7 +425,7 @@ async function readWatchedRows(config: any, userUUID?: string, everything = fals
   const sources = resolveSources(config, everything, userUUID);
   const keys = trackerKeys(config);
   const { collectLocalRows }: any = require('./localHistory');
-  const target = crosswatchTarget(config, userUUID, viewerOf(config, userUUID || '').profile);
+  const target = crosswatchTarget(config, userUUID, config.jellyfinProfileId ?? viewerOf(config, userUUID || '').profile);
   const [simkl, mdblist, local, crosswatch] = await Promise.all([
     sources.simkl ? collectSimklRows(config, keys.simkl!).catch(() => [] as WatchedRow[]) : Promise.resolve([] as WatchedRow[]),
     sources.mdblist ? collectMdblistRows(config, keys.mdblist!).catch(() => [] as WatchedRow[]) : Promise.resolve([] as WatchedRow[]),

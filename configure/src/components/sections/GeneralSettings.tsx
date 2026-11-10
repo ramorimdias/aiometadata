@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { WatchTrackingOptionsDialog } from '@/components/WatchTrackingOptionsDialog';
 import { useConfig } from '@/contexts/ConfigContext';
-import type { WatchTrackingService } from '@/contexts/config';
+import type { AppConfig, WatchTrackingService } from '@/contexts/config';
 import { navigateToSettingsSection } from '@/lib/settingsRoute';
 import {
   getWatchTrackingMediaTypeSummary,
@@ -28,6 +28,76 @@ import {
 
 import { languageOptions } from '@/data/languages';
 import { ratingCountryCodes } from '@/data/ratingCountries';
+
+const emptyCrosswatch = { url: '', token: '', viewers: {} };
+type CrosswatchSettings = NonNullable<AppConfig['crosswatch']>;
+
+function CrosswatchConnectionFields({ config, onChange }: {
+  config: AppConfig;
+  onChange: (connection: CrosswatchSettings) => void;
+}) {
+  const connection = config.crosswatch ?? emptyCrosswatch;
+  const viewers = [
+    { id: '', name: 'Main viewer' },
+    ...(config.jellyfinUsers ?? []),
+  ];
+  const trackerIds = viewers.map(({ id }) => connection.viewers?.[id]?.instance?.trim().toLowerCase()).filter(Boolean);
+  const hasDuplicateTracker = new Set(trackerIds).size !== trackerIds.length;
+  const setMapping = (id: string, field: 'profile' | 'instance' | 'removalPair', value: string) => {
+    onChange({
+      ...connection,
+      viewers: {
+        ...connection.viewers,
+        [id]: { profile: '', instance: '', ...connection.viewers?.[id], [field]: value },
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="crosswatch-url">CrossWatch server URL</Label>
+          <Input id="crosswatch-url" type="url" placeholder="https://crosswatch.example.com"
+            value={connection.url} onChange={(event) => onChange({ ...connection, url: event.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="crosswatch-token">CrossWatch API token</Label>
+          <Input id="crosswatch-token" type="password" autoComplete="off"
+            value={connection.token} onChange={(event) => onChange({ ...connection, token: event.target.value })} />
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Use your CrossWatch server’s public HTTPS address. Enter the profile ID and its assigned CrossWatch local tracker ID for each viewer you want to link. Use a different local tracker for each viewer.
+      </p>
+      {hasDuplicateTracker && (
+        <p role="alert" className="text-sm text-destructive">Viewers sharing a local tracker ID will be skipped. Enter a different ID for each viewer.</p>
+      )}
+      <div className="space-y-3">
+        {viewers.map(({ id, name }, index) => (
+          <fieldset key={id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-3">
+            <legend className="px-1 text-sm font-medium">{name}</legend>
+            <div className="space-y-1">
+              <Label htmlFor={`crosswatch-profile-${index}`}>Profile ID</Label>
+              <Input id={`crosswatch-profile-${index}`} value={connection.viewers?.[id]?.profile ?? ''}
+                onChange={(event) => setMapping(id, 'profile', event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`crosswatch-instance-${index}`}>Local tracker ID</Label>
+              <Input id={`crosswatch-instance-${index}`} value={connection.viewers?.[id]?.instance ?? ''}
+                onChange={(event) => setMapping(id, 'instance', event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`crosswatch-removal-pair-${index}`}>Removal pair ID (optional)</Label>
+              <Input id={`crosswatch-removal-pair-${index}`} value={connection.viewers?.[id]?.removalPair ?? ''}
+                onChange={(event) => setMapping(id, 'removalPair', event.target.value)} />
+            </div>
+          </fieldset>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const ratingCountryOptions = ratingCountryCodes
@@ -470,22 +540,26 @@ export function GeneralSettings() {
               </p>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
-              <div className="min-w-[12rem] flex-1">
-                <Label htmlFor="crosswatch-watch-tracking" className="font-medium">CrossWatch</Label>
-                <p className="text-sm text-muted-foreground">Track Jellyfin playback and use history from the CrossWatch profile assigned by your server administrator.</p>
-              </div>
-              <Switch
-                id="crosswatch-watch-tracking"
-                checked={config.crosswatchWatchTracking === true}
-                onCheckedChange={(checked) => setConfig((previous) => ({
-                  ...previous,
-                  crosswatchWatchTracking: checked,
-                  ...(checked ? { playbackReporting: true } : {}),
-                }))}
-              />
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
+            <div className="min-w-[12rem] flex-1">
+              <Label htmlFor="crosswatch-watch-tracking" className="font-medium">CrossWatch</Label>
+              <p className="text-sm text-muted-foreground">Use CrossWatch for this configuration’s Jellyfin playback and recommendation history.</p>
             </div>
+            <Switch
+              id="crosswatch-watch-tracking"
+              checked={config.crosswatchWatchTracking === true}
+              onCheckedChange={(checked) => setConfig((previous) => ({
+                ...previous,
+                crosswatchWatchTracking: checked,
+                ...(checked ? { playbackReporting: true } : {}),
+              }))}
+            />
+          </div>
+          {config.crosswatchWatchTracking === true && (
+            <CrosswatchConnectionFields config={config}
+              onChange={(crosswatch) => setConfig((previous) => ({ ...previous, crosswatch }))} />
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
               <div className="min-w-[12rem] flex-1">
                 <Label htmlFor="simkl-watch-tracking" className="font-medium">Simkl</Label>

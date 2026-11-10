@@ -1,4 +1,5 @@
 import type { UserConfig } from '../types';
+import { hasCrosswatchConnection } from './crosswatch';
 import { ACCOUNT_SERVICES, credentialOf, trackerConfig } from './accounts';
 
 export type WatchTrackingService =
@@ -45,8 +46,7 @@ export function shouldTrackServiceMediaType(
 }
 
 export function hasAnyWatchTrackingEnabled(config: UserConfig): boolean {
-  if (config.crosswatchWatchTracking === true && process.env.CROSSWATCH_URL &&
-      process.env.CROSSWATCH_TOKEN && process.env.CROSSWATCH_VIEWERS) return true;
+  if (hasCrosswatchConnection(config)) return true;
   return WATCH_TRACKING_SERVICES.some(
     (service) =>
       shouldTrackServiceMediaType(config, service, 'movie') ||
