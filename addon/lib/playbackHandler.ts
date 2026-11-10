@@ -1,7 +1,7 @@
 import consola from 'consola';
 import { LRUCache } from 'lru-cache';
 import { envInt } from '../utils/envNumber';
-import { crosswatchTarget } from './crosswatch';
+import { crosswatchTarget, shouldTrackCrosswatchMedia } from './crosswatch';
 import { enqueueTrackerWrites, startWindowSeconds, type OutboxJob } from './trackerOutbox';
 import type { WatchTrackingService } from './watchTracking';
 
@@ -349,7 +349,7 @@ export async function handlePlaybackReport(
 function crosswatchJobsFor(config: any, userUUID: string, item: string, id: string,
   intent: PlaybackIntent, positionMs: number | null, durationMs: number | null): OutboxJob[] {
   const target = crosswatchTarget(config, userUUID);
-  if (!target) return [];
+  if (!target || !shouldTrackCrosswatchMedia(config, id)) return [];
   const payload = { id, metaId: item, positionMs, durationMs, at: Date.now() };
   const job = (op: OutboxJob['op'], coalesce: string): OutboxJob =>
     ({ service: 'crosswatch', op, item, payload, coalesce });

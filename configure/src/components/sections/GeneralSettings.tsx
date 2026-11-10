@@ -475,7 +475,7 @@ export function GeneralSettings() {
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
               <div className="min-w-[12rem] flex-1">
                 <Label htmlFor="crosswatch-watch-tracking" className="font-medium">CrossWatch</Label>
-                <p className="text-sm text-muted-foreground">Sync Jellyfin playback and use CrossWatch history for recommendations.</p>
+                <p className="text-sm text-muted-foreground">{getWatchTrackingMediaTypeSummary(config, 'crosswatch')}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <CrosswatchSettingsDialog />

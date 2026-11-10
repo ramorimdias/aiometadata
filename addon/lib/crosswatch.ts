@@ -212,9 +212,15 @@ async function media(id: string, config: any): Promise<Record<string, unknown> |
   return { type: 'episode', ids: episode.ids, show_ids: episode.ids, season: episode.season, episode: episode.episode };
 }
 
+export function shouldTrackCrosswatchMedia(config: any, id: string): boolean {
+  const { parseMediaId } = require('./subtitleHandler');
+  const parsed = parseMediaId(id);
+  return !!parsed && config.crosswatchMediaTypes?.[parsed.type] !== false;
+}
+
 export async function deliverCrosswatch(op: string, payload: any, config: any, userUUID: string): Promise<void> {
   const target = crosswatchTarget(config, userUUID);
-  if (!target) return;
+  if (!target || !shouldTrackCrosswatchMedia(config, payload.id)) return;
   const item = await media(payload.id, config);
   if (!item) throw new Error('CrossWatch could not identify the playback item');
   if ((op === 'credit' || op === 'scrobble') && payload.metaId) {

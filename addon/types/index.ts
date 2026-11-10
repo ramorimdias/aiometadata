@@ -68,6 +68,7 @@ export interface UserConfig {
   malWatchTracking?: boolean;
   publicmetadbWatchTracking?: boolean;
   crosswatchWatchTracking?: boolean;
+  crosswatchMediaTypes?: { movie?: boolean; series?: boolean };
   crosswatch?: {
     url: string;
     token: string;

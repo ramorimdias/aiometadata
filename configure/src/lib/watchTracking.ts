@@ -118,11 +118,15 @@ export function hasAnyWatchTrackingEnabled(config: AppConfig): boolean {
 
 export function getWatchTrackingMediaTypeSummary(
   config: AppConfig,
-  service: WatchTrackingService,
+  service: WatchTrackingService | 'crosswatch',
 ): string {
-  const definition = WATCH_TRACKING_SERVICE_DEFINITIONS[service];
-  const movie = isWatchTrackingMediaTypeSelected(config, service, 'movie');
-  const series = isWatchTrackingMediaTypeSelected(config, service, 'series');
+  const definition = service === 'crosswatch'
+    ? WATCH_TRACKING_SERVICE_DEFINITIONS.simkl
+    : WATCH_TRACKING_SERVICE_DEFINITIONS[service];
+  const movie = service === 'crosswatch' ? config.crosswatchMediaTypes?.movie !== false
+    : isWatchTrackingMediaTypeSelected(config, service, 'movie');
+  const series = service === 'crosswatch' ? config.crosswatchMediaTypes?.series !== false
+    : isWatchTrackingMediaTypeSelected(config, service, 'series');
 
   if (movie && series) return `${definition.movieLabel} & ${definition.seriesLabel}`;
   if (movie) return definition.movieLabel;

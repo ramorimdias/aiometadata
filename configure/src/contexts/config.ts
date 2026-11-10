@@ -321,6 +321,7 @@ export interface AppConfig {
   traktWatchTracking: boolean;
   publicmetadbWatchTracking: boolean;
   crosswatchWatchTracking?: boolean;
+  crosswatchMediaTypes?: { movie?: boolean; series?: boolean };
   crosswatch?: {
     url: string;
     token: string;

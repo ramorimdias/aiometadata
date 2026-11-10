@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useConfig } from '@/contexts/ConfigContext';
 import type { AppConfig } from '@/contexts/config';
@@ -80,7 +81,26 @@ export function CrosswatchSettingsDialog() {
           <DialogDescription>Connect your server and choose where each viewer’s playback is tracked.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
+          {([['movie', 'Movie'], ['series', 'TV Show']] as const).map(([type, label]) => {
+            const id = `crosswatch-${type}-watch-tracking`;
+            return (
+              <div key={type} className="flex items-center justify-between gap-4 rounded-lg border border-white/[0.08] p-3">
+                <div className="min-w-0">
+                  <Label htmlFor={id} className="font-medium">Sync {label} Watch History</Label>
+                  <p className="text-sm text-muted-foreground">Send {type === 'movie' ? 'movie' : 'TV show'} playback to CrossWatch.</p>
+                </div>
+                <Switch id={id} className="shrink-0" checked={config.crosswatchMediaTypes?.[type] !== false}
+                  onCheckedChange={(checked) => setConfig((previous) => ({
+                    ...previous,
+                    crosswatchMediaTypes: { ...previous.crosswatchMediaTypes, [type]: checked },
+                  }))} />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="space-y-3 border-t pt-4">
           <h3 className="text-sm font-semibold">Connection</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
