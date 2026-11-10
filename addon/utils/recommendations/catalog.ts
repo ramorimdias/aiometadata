@@ -26,6 +26,12 @@ export async function recommendationName(id: string, config: any, userUUID: stri
   const { readGlobalCache }: any = require('../../lib/getCache');
   const key = selectionKey(config, userUUID, entry.pool);
   const cached = await readGlobalCache(key) || await readGlobalCache(key + ':last-good');
+  if (entry.row !== 'top' && cached && !arrange(cached.rows?.[entry.row] ?? [], config, id).length
+      && arrange(cached.rows?.top ?? [], config, id).length) {
+    const media = entry.pool === 'anime-movie' ? 'Anime Movies' : entry.pool === 'anime-series' ? 'Anime Series'
+      : entry.type === 'movie' ? 'Movies' : 'Series';
+    return `${media} to Explore ${starterSlot(entry.row)}`;
+  }
   return cached?.names?.[entry.row] || entry.name;
 }
 
@@ -104,6 +110,26 @@ export function arrange(picks: any[], config: any, catalogId?: string): any[] {
   return kept.sort((a, b) => weighted(b) - weighted(a));
 }
 
+function starterSlot(row: string): number {
+  return WATCHLY_ROWS.findIndex(([name]) => name === row);
+}
+
+export function recommendationPicks(rows: Record<string, any[]>, row: string, config: any, id: string, known?: Set<string>): any[] {
+  const { titleKeys }: any = require('./history');
+  const available = (picks: any[]) => arrange(
+    known ? picks.filter(pick => !titleKeys(pick).some((key: string) => known.has(key))) : picks,
+    config,
+    id,
+  );
+  const personalized = available(rows[row] ?? []);
+  if (row === 'top' || personalized.length) return personalized;
+  const starter = available(rows.top ?? []);
+  if (!starter.length) return starter;
+  // Start each shelf at a different point in the eligible discovery pool.
+  const offset = (starterSlot(row) * 7) % starter.length;
+  return [...starter.slice(offset), ...starter.slice(0, offset)];
+}
+
 export async function getRecommendationCatalog(
   type: string,
   id: string,
@@ -115,16 +141,11 @@ export async function getRecommendationCatalog(
     const entry = RECOMMENDATION_CATALOGS.find(item => item.id === id);
     if (!entry) return [];
     const snapshot = await selection(config, userUUID, entry.pool);
-    const picks = snapshot.rows[entry.row] ?? [];
     const { markSeen }: any = require('./refresh');
-    const { watchedIndex, titleKeys, viewerKey }: any = require('./history');
+    const { watchedIndex, viewerKey }: any = require('./history');
     void markSeen(viewerKey(config, userUUID));
     const known = await watchedIndex(config, userUUID).catch(() => null);
-    const unseen = known ? picks.filter((pick: any) => !titleKeys(pick).some((key: string) => known.keys.has(key))) : picks;
-
-    // Ordered here rather than when the row is written, so changing the setting
-    // rearranges what already exists instead of rebuilding the candidate pool.
-    const ordered = arrange(unseen, config, id);
+    const ordered = recommendationPicks(snapshot.rows, entry.row, config, id, known?.keys);
 
     // The whole selection is generated at once, but clients page through it at
     // the manifest's page size. Serving only the first page silently discarded
@@ -147,6 +168,7 @@ module.exports = {
   getRecommendationCatalog,
   arrange,
   recommendationName,
+  recommendationPicks,
 };
 
 /** Builds the saved configuration's rows off the request path, on save: it is

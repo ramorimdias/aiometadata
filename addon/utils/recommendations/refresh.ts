@@ -23,11 +23,13 @@ export async function markSeen(viewer: string): Promise<void> {
 }
 
 export async function rowStamp(viewer: string): Promise<string> {
-  if (!redis) return '';
+  // Page output can change independently of the cached recommendation selection.
+  const version = 'starter-v1';
+  if (!redis) return version;
   try {
-    return (await redis.get(`recommendations:stamp:${viewer}`)) || '';
+    return `${version}:${(await redis.get(`recommendations:stamp:${viewer}`)) || ''}`;
   } catch {
-    return '';
+    return version;
   }
 }
 
