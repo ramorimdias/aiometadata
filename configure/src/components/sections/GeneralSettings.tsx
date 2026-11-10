@@ -473,6 +473,21 @@ export function GeneralSettings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
               <div className="min-w-[12rem] flex-1">
+                <Label htmlFor="crosswatch-watch-tracking" className="font-medium">CrossWatch</Label>
+                <p className="text-sm text-muted-foreground">Track Jellyfin playback and use history from the CrossWatch profile assigned by your server administrator.</p>
+              </div>
+              <Switch
+                id="crosswatch-watch-tracking"
+                checked={config.crosswatchWatchTracking === true}
+                onCheckedChange={(checked) => setConfig((previous) => ({
+                  ...previous,
+                  crosswatchWatchTracking: checked,
+                  ...(checked ? { playbackReporting: true } : {}),
+                }))}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 rounded-lg hover:bg-accent/50 transition-colors">
+              <div className="min-w-[12rem] flex-1">
                 <Label htmlFor="simkl-watch-tracking" className="font-medium">Simkl</Label>
                 <p className="text-sm text-muted-foreground">{getWatchTrackingMediaTypeSummary(config, 'simkl')}</p>
               </div>

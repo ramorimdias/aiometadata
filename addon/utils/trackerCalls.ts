@@ -43,7 +43,13 @@ export function noteTrackerCall(url: string, status: number, body?: string, retr
   } catch {
     return;
   }
-  if (!TRACKER_HOSTS.has(host)) return;
+  if (!TRACKER_HOSTS.has(host)) {
+    try {
+      if (!process.env.CROSSWATCH_URL || new URL(url).origin !== new URL(process.env.CROSSWATCH_URL).origin) return;
+    } catch {
+      return;
+    }
+  }
   const seconds = Number(retryAfter);
   calls.push({
     host,

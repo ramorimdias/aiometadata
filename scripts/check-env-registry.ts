@@ -13,6 +13,9 @@ const INTERNAL_ALLOWLIST = new Set<string>([
   'HOME',
   'CACHE_WARMUP_UUID',
   'POSTER_CACHE_LOG_PIPE',
+  'CROSSWATCH_URL',
+  'CROSSWATCH_TOKEN',
+  'CROSSWATCH_VIEWERS',
 ]);
 
 /** Known debt: warned about, never grown. A setting not listed here fails the check. */

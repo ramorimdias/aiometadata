@@ -320,6 +320,7 @@ export interface AppConfig {
   simklSyncInterval?: number;
   traktWatchTracking: boolean;
   publicmetadbWatchTracking: boolean;
+  crosswatchWatchTracking?: boolean;
   /** Optional per-service filters. Missing media-type flags preserve legacy behavior and are treated as enabled. */
   watchTracking?: WatchTrackingConfig;
   /** If true, keep RPDB posters for items in Continue Watching and Library (default: true). When disabled, RPDB posters are removed since catalog context is unavailable. */

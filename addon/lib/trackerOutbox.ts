@@ -4,6 +4,7 @@ import { accountOwner, credentialOf, trackerConfig } from './accounts';
 import { runInViewerScope } from './jellyfin/viewer';
 import { envInt } from '../utils/envNumber';
 import { recordingTrackerCalls, type TrackerCall } from '../utils/trackerCalls';
+import { crosswatchTarget, deliverCrosswatch } from './crosswatch';
 import type { WatchTrackingService } from './watchTracking';
 
 /**
@@ -20,7 +21,7 @@ const database: any = require('./database');
 export type OutboxOp = 'scrobble' | 'credit' | 'unwatch' | 'clearResume' | 'anime' | 'episodes' | 'dropped' | 'watchlist' | 'rate';
 
 export interface OutboxJob {
-  service: WatchTrackingService;
+  service: WatchTrackingService | 'crosswatch';
   op: OutboxOp;
   /** The title the write is about. A title's writes on one account are sent in the order they were made. */
   item: string;
@@ -75,6 +76,14 @@ function laneFor(config: any, service: WatchTrackingService): string | null {
   return credential ? laneKey(service, credential) : null;
 }
 
+function crosswatchLane(config: any, userUUID?: string): string | null {
+  const target = crosswatchTarget(config, userUUID);
+  if (!target) return null;
+  return `crosswatch:${createHash('sha256').update(JSON.stringify([
+    process.env.CROSSWATCH_URL, userUUID, config.jellyfinProfileId || '', target.profile, target.instance,
+  ])).digest('hex').slice(0, 24)}`;
+}
+
 export interface PendingWatch {
   videoId: string;
   kind: 'movie' | 'episode';
@@ -120,7 +129,9 @@ export async function pendingWatches(service: WatchTrackingService, credential: 
  */
 export async function enqueueTrackerWrites(userUUID: string | undefined, config: any, jobs: OutboxJob[]): Promise<void> {
   const rows = jobs
-    .map((job) => ({ job, lane: laneFor(config, job.service) }))
+    .map((job) => ({ job, lane: job.service === 'crosswatch'
+      ? crosswatchLane(config, userUUID)
+      : laneFor(config, job.service) }))
     .filter((entry): entry is { job: OutboxJob; lane: string } => entry.lane !== null);
   if (!rows.length) {
     if (userUUID) settle(userUUID, config, ['clearResume']);
@@ -133,7 +144,7 @@ export async function enqueueTrackerWrites(userUUID: string | undefined, config:
       await database.enqueueTrackerOutbox(rows.map(({ job, lane }) => ({
         lane,
         userUUID,
-        profile: accountOwner(config),
+        profile: job.service === 'crosswatch' ? config.jellyfinProfileId || '' : accountOwner(config),
         service: job.service,
         op: job.op,
         item: job.item,
@@ -149,7 +160,10 @@ export async function enqueueTrackerWrites(userUUID: string | undefined, config:
   }
 
   for (const { job } of rows) {
-    await executors[job.op](job.service, job.payload, trackerConfig(config, job.service), userUUID ?? '').catch((error: any) =>
+    const send = job.service === 'crosswatch'
+      ? deliverCrosswatch(job.op, job.payload, config, userUUID ?? '')
+      : executors[job.op](job.service, job.payload, trackerConfig(config, job.service), userUUID ?? '');
+    await send.catch((error: any) =>
       logger.error(`${job.service} ${job.op} failed: ${error?.message || error}`)
     );
   }
@@ -311,7 +325,9 @@ async function deliver(row: any): Promise<void> {
     return;
   }
 
-  if (row.profile && (accountOwner(config) !== row.profile || !credentialOf(config, row.service))) {
+  if (row.service === 'crosswatch'
+    ? crosswatchLane(config, row.user_uuid) !== row.lane
+    : row.profile && (accountOwner(config) !== row.profile || !credentialOf(config, row.service))) {
     await database.deleteTrackerOutbox(row.id);
     logger.warn(`Dropping ${label}: user ${row.profile} no longer holds a ${row.service} account`);
     return;
@@ -324,7 +340,9 @@ async function deliver(row: any): Promise<void> {
   }
 
   const payload = JSON.parse(row.payload);
-  const { calls, error } = await recordingTrackerCalls(() => executor(row.service, payload, trackerConfig(config, row.service), row.user_uuid));
+  const { calls, error } = await recordingTrackerCalls(() => row.service === 'crosswatch'
+    ? deliverCrosswatch(row.op, payload, config, row.user_uuid)
+    : executor(row.service, payload, trackerConfig(config, row.service), row.user_uuid));
   const outcome = judge(calls, error);
 
   if (outcome.kind === 'done') {

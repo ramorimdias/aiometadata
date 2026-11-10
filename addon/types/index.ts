@@ -67,6 +67,7 @@ export interface UserConfig {
   /** Enable/disable MyAnimeList watch tracking */
   malWatchTracking?: boolean;
   publicmetadbWatchTracking?: boolean;
+  crosswatchWatchTracking?: boolean;
   /** Optional per-service media filters. Missing flags preserve legacy behavior and are treated as enabled. */
   watchTracking?: Partial<Record<
     'trakt' | 'simkl' | 'anilist' | 'mal' | 'mdblist' | 'publicmetadb',

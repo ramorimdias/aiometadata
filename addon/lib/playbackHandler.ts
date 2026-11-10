@@ -1,6 +1,7 @@
 import consola from 'consola';
 import { LRUCache } from 'lru-cache';
 import { envInt } from '../utils/envNumber';
+import { crosswatchTarget } from './crosswatch';
 import { enqueueTrackerWrites, startWindowSeconds, type OutboxJob } from './trackerOutbox';
 import type { WatchTrackingService } from './watchTracking';
 
@@ -190,7 +191,12 @@ export async function handleBulkPlaybackReport(
       if (shouldTrackServiceMediaType(config, service, 'series')) jobs.push({ service, op: 'anime', item, coalesce: `anime:${item}`, payload: { type, id: edge, report, through } });
     }
   }
-  if (writesTrackersFor(config)) await enqueueTrackerWrites(userUUID, config, jobs);
+  const legacyJobs = writesTrackersFor(config) ? jobs : [];
+  const crosswatchJobs = videos.flatMap((video: string) =>
+    crosswatchJobsFor(config, userUUID, item, video, event === 'played' ? 'watched' : 'unwatched', null, null));
+  if (legacyJobs.length || crosswatchJobs.length) {
+    await enqueueTrackerWrites(userUUID, config, [...legacyJobs, ...crosswatchJobs]);
+  }
 
   return { status: 204 };
 }
@@ -323,10 +329,13 @@ export async function handlePlaybackReport(
     undropOnWatch(userUUID, config, [report.metaId]);
   }
 
+  const cw = crosswatchJobsFor(config, userUUID, report.metaId || id, id, intent, report.positionMs, report.durationMs);
   if (writesTrackersFor(config)) {
     const { playedThresholdFor } = require('./jellyfin/playstate');
     const watchedAt = await playedThresholdFor(userUUID, config?.jellyfinProfileId ?? null);
-    await enqueueTrackerWrites(userUUID, config, planReport(type, id, report, progress, config, watchedAt));
+    await enqueueTrackerWrites(userUUID, config, [...planReport(type, id, report, progress, config, watchedAt), ...cw]);
+  } else if (cw.length) {
+    await enqueueTrackerWrites(userUUID, config, cw);
   }
 
   return { status: 204 };
@@ -337,6 +346,26 @@ export async function handlePlaybackReport(
  * failed. A tracker that holds plays rather than a flag would otherwise count a
  * watch twice because the resume clear after it failed.
  */
+function crosswatchJobsFor(config: any, userUUID: string, item: string, id: string,
+  intent: PlaybackIntent, positionMs: number | null, durationMs: number | null): OutboxJob[] {
+  const target = crosswatchTarget(config, userUUID);
+  if (!target) return [];
+  const payload = { id, metaId: item, positionMs, durationMs, at: Date.now() };
+  const job = (op: OutboxJob['op'], coalesce: string): OutboxJob =>
+    ({ service: 'crosswatch', op, item, payload, coalesce });
+  if (intent === 'watched') return [job('credit', `history:${id}`), job('clearResume', `resume:${id}`)];
+  if (intent === 'unwatched') {
+    return [
+      ...(target.removalPair ? [job('unwatch', `history:${id}`)] : []),
+      job('clearResume', `resume:${id}`),
+    ];
+  }
+  if ((intent === 'paused' || intent === 'partial') && positionMs && durationMs && positionMs < durationMs) {
+    return [job('scrobble', `resume:${id}`)];
+  }
+  return [];
+}
+
 function planReport(type: string, id: string, report: PlaybackReport, progress: number | null, config: any, watchedAt: number): OutboxJob[] {
   const { parseMediaId } = require('./subtitleHandler');
   const { shouldTrackServiceMediaType, normalizeWatchTrackingMediaType } = require('./watchTracking');

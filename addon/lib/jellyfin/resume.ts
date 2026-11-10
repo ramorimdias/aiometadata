@@ -4,6 +4,7 @@ import { LRUCache } from 'lru-cache';
 import { envInt } from '../../utils/envNumber';
 import { type Capable, credentialFor, resumeSourcesFor } from './trackerSource';
 import { canonicalIds } from './canonicalIds';
+import { crosswatchProgress, crosswatchTarget } from '../crosswatch';
 
 const logger = consola.withTag('Jellyfin');
 
@@ -469,6 +470,27 @@ export async function trackerPositions(userUUID: string, config: any): Promise<M
 
 // Each connected service is read: a title paused through one app is only on
 // that app's tracker. The same video on two of them takes the newer position.
+async function crosswatchResumeRows(config: any, userUUID: string): Promise<ResumeRow[]> {
+  const target = crosswatchTarget(config, userUUID);
+  if (!target) return [];
+  const rows: ResumeRow[] = [];
+  for (const entry of await crosswatchProgress(target)) {
+    const progress = Number(entry.progress_percent);
+    if (!Number.isFinite(progress) || progress <= 0 || progress >= 100) continue;
+    const updatedAt = Date.parse(entry.updated_at || entry.progress_at || '') || 0;
+    const runtimeMinutes = Number(entry.duration_seconds) > 0 ? Number(entry.duration_seconds) / 60 : null;
+    const ids = entry.ids ?? {};
+    if (entry.media_type === 'movie') {
+      const base = /^tt\d+$/.test(ids.imdb) ? ids.imdb : ids.tmdb ? await movieBase(ids.tmdb, config) : null;
+      if (base) rows.push({ metaId: base, videoId: base, mediaType: 'movie', kind: 'movie', progress, runtimeMinutes, updatedAt });
+    } else if (Number.isInteger(entry.season) && Number.isInteger(entry.episode)) {
+      const resolved = await videoIdFor(entry.provider_metadata?.show_ids ?? ids, entry.season, entry.episode, config);
+      if (resolved) rows.push({ ...resolved, kind: 'episode', progress, runtimeMinutes, updatedAt });
+    }
+  }
+  return rows;
+}
+
 export async function trackerSnapshot(userUUID: string, config: any): Promise<ResumeRow[]> {
   const parts = await Promise.all(
     resumeSourcesFor(config).map(async (service) => {
@@ -477,7 +499,8 @@ export async function trackerSnapshot(userUUID: string, config: any): Promise<Re
     })
   );
   const { homedRows } = require('./episodeHome');
-  const homed: ResumeRow[] = await homedRows(userUUID, config, parts.flatMap((part) => part.rows));
+  const crosswatch = await crosswatchResumeRows(config, userUUID).catch(() => [] as ResumeRow[]);
+  const homed: ResumeRow[] = await homedRows(userUUID, config, [...parts.flatMap((part) => part.rows), ...crosswatch]);
   const merged = new Map<string, ResumeRow>();
   for (const row of homed) {
     const held = merged.get(row.videoId);

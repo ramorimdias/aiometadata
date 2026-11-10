@@ -65,7 +65,7 @@ function mappedIds(parsed: any, series: boolean): { imdb?: string; tmdb?: string
 }
 
 /** Metadata only if it is already cached; nothing is fetched to answer. */
-async function cachedMeta(config: any, userUUID: string, type: string, id: string): Promise<any> {
+export async function cachedMeta(config: any, userUUID: string, type: string, id: string): Promise<any> {
   const { cacheWrapMetaSmart }: any = require('../../lib/getCache');
   return (await cacheWrapMetaSmart(userUUID, id, async () => ({ meta: null }), undefined, { config }, type, false))?.meta ?? null;
 }
@@ -234,4 +234,4 @@ export async function collectLocalRows(config: any, userUUID: string, profile: s
   return [...merged.values()].map(({ row, episodic, episodes }) => (episodic ? { ...row, watchedEpisodes: episodes.size } : row));
 }
 
-module.exports = { collectLocalRows, localPlayVersion, localWatchedKeys };
+module.exports = { cachedMeta, collectLocalRows, localPlayVersion, localWatchedKeys };

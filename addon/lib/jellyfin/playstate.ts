@@ -471,9 +471,10 @@ async function writePlaystate(
 }
 
 // The table records every play; trackers hear these reports only in playback mode.
-function tellsTrackers(config: any): boolean {
+function tellsTrackers(config: any, userUUID: string): boolean {
   const { writesTrackers } = require('./profiles');
-  return Boolean(config?.playbackReporting) && writesTrackers(config);
+  const { crosswatchTarget } = require('../crosswatch');
+  return Boolean(config?.playbackReporting) && (writesTrackers(config) || Boolean(crosswatchTarget(config, userUUID)));
 }
 
 async function report(
@@ -550,14 +551,14 @@ async function settle(
   resumedFrom: number | null = null
 ): Promise<void> {
   // The table is written before any tracker is told, so a read never waits on one.
-  await recordPlaystate(userUUID, profile, session, event, positionMs, played, config, event === 'stop' && played === true, !tellsTrackers(config));
+  await recordPlaystate(userUUID, profile, session, event, positionMs, played, config, event === 'stop' && played === true, !tellsTrackers(config, userUUID));
   if (played === true && session.descriptor.k === 'episode') {
     const { undropOnWatch } = require('./dropped');
     undropOnWatch(userUUID, config, [session.descriptor.i]);
   }
   if (played === true) require('./watchlist').leaveWatchlistOnWatch(userUUID, config, [session.descriptor]);
 
-  if (!tellsTrackers(config)) return;
+  if (!tellsTrackers(config, userUUID)) return;
 
   // A pause at zero is what a collapsed position looks like, and a real one says
   // nothing a tracker can use, so it is remembered without writing a resume
@@ -633,7 +634,7 @@ async function markEach(req: any, body: any, event: 'played' | 'unplayed', upTo 
   if (open && !open.paused && isPlayable(await decodeJellyfinId(itemId))) {
     const session = await resolveSession(userUUID, itemId);
     deletePosition(`${userUUID}:${profile}:${itemId}`);
-    if (session && tellsTrackers(config)) {
+    if (session && tellsTrackers(config, userUUID)) {
       const at = played ? (session.runtimeMs ?? open.positionMs) : open.positionMs;
       await tellTrackers(userUUID, config, session, 'stop', at, played, false).catch((error: any) =>
         logger.debug(`Closing the open session before a mark failed for ${itemId}: ${error?.message || error}`)
@@ -656,7 +657,7 @@ async function markEach(req: any, body: any, event: 'played' | 'unplayed', upTo 
 
   // Every row is written before anything is dropped or a client told, so none reads half a season.
   const { forgetOwnWatches, invalidateResume } = require('./resume');
-  if (tellsTrackers(config)) forgetOwnWatches(userUUID);
+  if (tellsTrackers(config, userUUID)) forgetOwnWatches(userUUID);
   else invalidateResume(userUUID);
   for (const session of sessions) {
     announce(userUUID, config, profile, session).catch((error: any) =>
@@ -669,7 +670,7 @@ async function markEach(req: any, body: any, event: 'played' | 'unplayed', upTo 
     undropOnWatch(userUUID, config, sessions.filter((session) => session.descriptor.k === 'episode').map((session) => session.descriptor.i));
     require('./watchlist').leaveWatchlistOnWatch(userUUID, config, sessions.map((session) => session.descriptor));
   }
-  if (!tellsTrackers(config)) return;
+  if (!tellsTrackers(config, userUUID)) return;
   // A season or series goes to the trackers as one batch, not an event per episode.
   if (marked.scope) {
     const { handlePlaybackReport } = require('../playbackHandler');
@@ -911,7 +912,7 @@ export async function recordUserData(req: any, body: any): Promise<{ played: boo
 
   // Cleared here means cleared on the trackers too, or their copy would come
   // back through the shelf on any device reading them directly.
-  if (positionMs === 0 && tellsTrackers(config)) {
+  if (positionMs === 0 && tellsTrackers(config, userUUID)) {
     const { enqueueTrackerWrites, hasCredential } = require('../trackerOutbox');
     const services = (['simkl', 'mdblist', 'publicmetadb'] as const).filter((service) => hasCredential(config, service));
     await enqueueTrackerWrites(userUUID, config, services.map((service) => ({

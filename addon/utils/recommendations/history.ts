@@ -1,4 +1,5 @@
 import consola from 'consola';
+import { crosswatchHistory, crosswatchTarget } from '../../lib/crosswatch';
 
 const logger = consola.withTag('Recommendations');
 
@@ -63,7 +64,7 @@ export interface WatchedRow {
   totalEpisodes?: number;
   /** 'completed' or 'dropped'. A drop is a negative signal worth as much as a low score. */
   status: string;
-  source: 'simkl' | 'mdblist' | 'local';
+  source: 'simkl' | 'mdblist' | 'local' | 'crosswatch';
 }
 
 function toYear(value: any): number | undefined {
@@ -297,6 +298,9 @@ export function runAsProfile<T>(config: any, userUUID: string, profileId: string
 }
 
 export async function canReadHistory(config: any, userUUID: string): Promise<boolean> {
+  const { listProfiles } = require('../../lib/jellyfin/profiles');
+  if (crosswatchTarget(config, userUUID, '') ||
+      listProfiles(config, userUUID).some((profile: any) => crosswatchTarget(config, userUUID, profile.id))) return true;
   const hasTracker = (keys: any) => !!(keys?.simklTokenId || keys?.mdblist);
   if (hasTracker(config?.apiKeys)) return true;
   if ((Array.isArray(config?.jellyfinUsers) ? config.jellyfinUsers : []).some((user: any) => hasTracker(user?.accounts?.apiKeys))) return true;
@@ -306,11 +310,15 @@ export async function canReadHistory(config: any, userUUID: string): Promise<boo
   return database.hasPlays(userUUID).catch(() => false);
 }
 
-type Sources = { simkl: boolean; mdblist: boolean; local: boolean; choice: HistorySource | 'all' };
+type Sources = { simkl: boolean; mdblist: boolean; local: boolean; choice: HistorySource | 'all' | 'crosswatch' };
 
 /** Kept separate from "is it connected": connecting Simkl for watchlist catalogs
  *  should not enrol a viewing history into a model prompt. */
-export function resolveSources(config: any, everything = false): Sources {
+export function resolveSources(config: any, everything = false, userUUID?: string): Sources {
+  if (!everything && config.crosswatchWatchTracking === true &&
+      (!userUUID || crosswatchTarget(config, userUUID, viewerOf(config, userUUID).profile))) {
+    return { simkl: false, mdblist: false, local: false, choice: 'crosswatch' };
+  }
   const keys = trackerKeys(config);
   const hasSimkl = !!keys.simkl;
   const hasMdblist = !!keys.mdblist;
@@ -351,28 +359,80 @@ export async function collectWatchedRows(config: any, userUUID?: string, options
   const everything = options.everything === true;
   if (!userUUID) return readWatchedRows(config, undefined, everything);
 
-  const sources = resolveSources(config, everything);
+  const sources = resolveSources(config, everything, userUUID);
   const fingerprint = await historyFingerprint(config, userUUID, sources);
+  const target = crosswatchTarget(config, userUUID, viewerOf(config, userUUID).profile);
+  const targetKey = target ? JSON.stringify([target.profile, target.instance]) : '';
 
   const { cacheWrapGlobal }: any = require('../../lib/getCache');
   return cacheWrapGlobal(
-    `recommendations:history:v4:${viewerKey(config, userUUID)}:${sources.choice}${fingerprint ? `:${fingerprint}` : ''}`,
+    `recommendations:history:v4:${viewerKey(config, userUUID)}:${sources.choice}:${targetKey}${fingerprint ? `:${fingerprint}` : ''}`,
     () => readWatchedRows(config, userUUID, everything),
-    fingerprint ? HISTORY_TTL : UNWATCHED_TTL,
+    target ? 120 : fingerprint ? HISTORY_TTL : UNWATCHED_TTL,
     { sourceList: true }
   );
 }
 
+async function collectCrosswatchRows(target: NonNullable<ReturnType<typeof crosswatchTarget>>, config: any, userUUID: string): Promise<WatchedRow[]> {
+  const history = await crosswatchHistory(target);
+  const ratings = await crosswatchHistory(target, 'ratings').catch(() => []);
+  const ratingById = new Map<string, number>();
+  const identity = (item: any) => {
+    const episode = item.type === 'episode';
+    const kind = episode || item.type === 'show' || item.type === 'series' ? 'series' : item.type === 'movie' ? 'movie' : null;
+    if (!kind) return;
+    const ids = episode ? item.show_ids ?? item.ids?.show_ids ?? item.ids : item.ids;
+    const imdbId = typeof ids?.imdb === 'string' && /^tt\d+$/.test(ids.imdb) ? ids.imdb : undefined;
+    const tmdbId = toTmdbId(ids?.tmdb ?? item.tmdb);
+    if (!imdbId && !tmdbId) return;
+    return { kind, imdbId, tmdbId, key: imdbId || `crosswatch:${kind}:${tmdbId}` } as const;
+  };
+  for (const item of ratings) {
+    const ids = identity(item);
+    const value = toRating(item.rating ?? item.user_rating);
+    if (ids && value !== undefined) ratingById.set(ids.key, value);
+  }
+  const rows = new Map<string, { row: WatchedRow; episodes: Set<string> }>();
+  for (const item of history) {
+    const ids = identity(item);
+    if (!ids) continue;
+    const timestamp = Date.parse(item.watched_at ?? item.last_watched_at ?? '');
+    if (!Number.isFinite(timestamp)) continue;
+    const watchedAt = new Date(timestamp).toISOString();
+    let entry = rows.get(ids.key);
+    if (!entry) {
+      const { cachedMeta } = require('./localHistory');
+      const metaId = ids.imdbId ?? `tmdb:${ids.tmdbId}`;
+      const title = String(item.type === 'episode' ? item.series_title ?? '' : item.title ?? '').trim();
+      const meta = title ? undefined : await cachedMeta(config, userUUID, ids.kind, metaId).catch(() => null);
+      const name = title || meta?.name;
+      if (!name) continue;
+      entry = { row: {
+        ...ids, tmdbType: ids.kind === 'series' ? 'tv' : 'movie',
+        title: name, year: toYear(item.series_year ?? item.year), watchedAt, rating: ratingById.get(ids.key),
+        status: 'completed', source: 'crosswatch',
+      }, episodes: new Set() };
+      rows.set(ids.key, entry);
+    }
+    if (item.type === 'episode') entry.episodes.add(`${item.season}:${item.episode}`);
+    if (watchedAt > (entry.row.watchedAt || '')) entry.row.watchedAt = watchedAt;
+  }
+  return [...rows.values()].map(({ row, episodes }) =>
+    episodes.size ? { ...row, watchedEpisodes: episodes.size } : row);
+}
+
 async function readWatchedRows(config: any, userUUID?: string, everything = false): Promise<WatchedRow[]> {
-  const sources = resolveSources(config, everything);
+  const sources = resolveSources(config, everything, userUUID);
   const keys = trackerKeys(config);
   const { collectLocalRows }: any = require('./localHistory');
-  const [simkl, mdblist, local] = await Promise.all([
+  const target = crosswatchTarget(config, userUUID, viewerOf(config, userUUID || '').profile);
+  const [simkl, mdblist, local, crosswatch] = await Promise.all([
     sources.simkl ? collectSimklRows(config, keys.simkl!).catch(() => [] as WatchedRow[]) : Promise.resolve([] as WatchedRow[]),
     sources.mdblist ? collectMdblistRows(config, keys.mdblist!).catch(() => [] as WatchedRow[]) : Promise.resolve([] as WatchedRow[]),
     sources.local && userUUID
       ? collectLocalRows(config, userUUID, viewerOf(config, userUUID).profile).catch(() => [] as WatchedRow[])
       : Promise.resolve([] as WatchedRow[]),
+    target ? collectCrosswatchRows(target, config, userUUID!).catch(() => [] as WatchedRow[]) : Promise.resolve([] as WatchedRow[]),
   ]);
 
   // Keyed by imdb id where there is one, so a title without one is matched on an
@@ -391,7 +451,7 @@ async function readWatchedRows(config: any, userUUID?: string, everything = fals
     const tmdbType = (first.tmdbId === tmdbId ? first.tmdbType : undefined) ?? (second.tmdbId === tmdbId ? second.tmdbType : undefined);
     return { tmdbId, tmdbType };
   };
-  for (const row of [...local, ...mdblist, ...simkl]) {
+  for (const row of [...local, ...mdblist, ...simkl, ...crosswatch]) {
     const at = [row.key, ...identities(row).map(key => holder.get(key))]
       .find((key): key is string => !!key && merged.has(key) && agrees(merged.get(key)!, row)) ?? row.key;
     const existing = merged.get(at);
